@@ -16,8 +16,6 @@ Examples:
 - `FeedbackSerializer`
 - `FeedbackCorrelator`
 - `FeedbackProvenanceAdapter`
-- `FeedbackLifecyclePolicy`
-- `FeedbackPolicy`
 
 Why:
 
@@ -34,12 +32,17 @@ Examples:
 - `FeedbackStore`
 - `FeedbackHandler`
 - `FeedbackRouter`
+- `FeedbackLifecyclePolicy`
+- `FeedbackPolicy`
 
 Why:
 
 - stores must be concurrency-safe and honor idempotency semantics
 - handlers have a standard async `handle()` contract with structured result type
 - routers must be side-effect free selectors returning handlers
+- lifecycle/redaction policies enforce business-critical invariants
+  (authorization, data handling) where an explicit, non-duck-typed
+  contract makes the extension point harder to satisfy accidentally
 
 ## Actual contracts
 
@@ -73,6 +76,18 @@ Method:
 
 - `route(feedback) -> Sequence[FeedbackHandler]`
 
+#### `FeedbackLifecyclePolicy`
+
+Method:
+
+- `authorize_transition(feedback, target) -> None`
+
+#### `FeedbackPolicy`
+
+Method:
+
+- `apply(feedback) -> FeedbackEvent`
+
 ### Protocols
 
 #### `FeedbackCorrelator`
@@ -95,14 +110,6 @@ Bundled implementation:
 #### `FeedbackSubscriber`
 
 - `async __call__(feedback) -> None`
-
-#### `FeedbackLifecyclePolicy`
-
-- `authorize_transition(feedback, target) -> None`
-
-#### `FeedbackPolicy`
-
-- `apply(feedback) -> FeedbackEvent`
 
 ## Practical extension guidance
 

@@ -8,7 +8,7 @@
 
 `FeedbackManager` accepts `redaction_policy: FeedbackPolicy | None`.
 
-`FeedbackPolicy` is a protocol with:
+`FeedbackPolicy` is an abstract base class with:
 
 ```python
 def apply(self, feedback: FeedbackEvent) -> FeedbackEvent: ...

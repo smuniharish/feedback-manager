@@ -1,15 +1,14 @@
-"""Structural contracts for feedback and lifecycle policy hooks."""
+"""Abstract contracts for feedback and lifecycle policy hooks."""
 
 from __future__ import annotations
 
-from typing import Protocol, runtime_checkable
+from abc import ABC, abstractmethod
 
 from feedback_manager.core.events import FeedbackEvent
 from feedback_manager.core.status import FeedbackStatus
 
 
-@runtime_checkable
-class FeedbackLifecyclePolicy(Protocol):
+class FeedbackLifecyclePolicy(ABC):
     """Allows application code to add business rules on top of the base state machine.
 
     The base transition table in :mod:`feedback_manager.core.lifecycle`
@@ -18,18 +17,17 @@ class FeedbackLifecyclePolicy(Protocol):
     the original requester may resolve their own feedback").
     """
 
+    @abstractmethod
     def authorize_transition(self, feedback: FeedbackEvent, target: FeedbackStatus) -> None:
         """Raise if the transition should not be allowed; return normally otherwise."""
-        ...
 
 
-@runtime_checkable
-class FeedbackPolicy(Protocol):
+class FeedbackPolicy(ABC):
     """General extension point for redaction/filtering before persistence or serialization."""
 
+    @abstractmethod
     def apply(self, feedback: FeedbackEvent) -> FeedbackEvent:
         """Return a (possibly modified) copy of ``feedback``."""
-        ...
 
 
 __all__ = ["FeedbackLifecyclePolicy", "FeedbackPolicy"]
