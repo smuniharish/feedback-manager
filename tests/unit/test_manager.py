@@ -229,3 +229,15 @@ async def test_multiple_manager_instances_are_isolated() -> None:
     assert await manager_b.get(event.feedback_id) is None
     assert len(await manager_a.list()) == 1
     assert len(await manager_b.list()) == 0
+
+
+def test_xai_runtime_and_provenance_adapter_are_mutually_exclusive() -> None:
+    from langgraph_xai import XAIRuntime
+
+    from feedback_manager.integrations.xai import XAIProvenanceAdapter
+
+    runtime = XAIRuntime(application_id="app", tenant_id="tenant", graph_id="graph")
+    adapter = XAIProvenanceAdapter(runtime)
+
+    with pytest.raises(ValueError, match=r"xai_runtime.*provenance_adapter"):
+        FeedbackManager(xai_runtime=runtime, provenance_adapter=adapter)

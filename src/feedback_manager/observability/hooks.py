@@ -8,13 +8,12 @@ OpenTelemetry/LangSmith/Langfuse/etc. by implementing
 
 from __future__ import annotations
 
-import logging
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Any, Protocol, runtime_checkable
 from uuid import UUID
 
-logger = logging.getLogger("feedback_manager.observability")
+from feedback_manager import _logging
 
 FEEDBACK_CREATED = "feedback.created"
 FEEDBACK_RECEIVED = "feedback.received"
@@ -43,14 +42,17 @@ class ObservabilitySink(Protocol):
 
 
 class LoggingObservabilitySink:
-    """Default sink: structured logging, no external dependency required."""
+    """Default sink: structured logging via ``structlog``, no external service required."""
 
     def __init__(self, logger_name: str = "feedback_manager.observability") -> None:
-        self._logger = logging.getLogger(logger_name)
+        self._logger = _logging.get_logger(logger_name)
 
     def emit(self, event: ObservabilityEvent) -> None:
         self._logger.info(
-            "%s feedback_id=%s attributes=%s", event.name, event.feedback_id, event.attributes
+            event.name,
+            feedback_id=str(event.feedback_id),
+            occurred_at=event.occurred_at.isoformat(),
+            **event.attributes,
         )
 
 

@@ -8,8 +8,7 @@ of scope (Section 17) and belong in application code implementing
 
 from __future__ import annotations
 
-import logging
-
+from feedback_manager import _logging
 from feedback_manager.contracts.handler import (
     FeedbackContext,
     FeedbackHandler,
@@ -22,19 +21,19 @@ class AuditFeedbackHandler(FeedbackHandler):
     """Records every feedback event it sees via structured logging."""
 
     def __init__(self, logger_name: str = "feedback_manager.audit") -> None:
-        self._logger = logging.getLogger(logger_name)
+        self._logger = _logging.get_logger(logger_name)
 
     async def handle(
         self, feedback: FeedbackEvent, context: FeedbackContext
     ) -> FeedbackHandlerResult:
         self._logger.info(
-            "feedback audited id=%s source=%s category=%s target=%s:%s status=%s",
-            feedback.feedback_id,
-            feedback.source,
-            feedback.category,
-            feedback.target.type,
-            feedback.target.id,
-            feedback.status,
+            "feedback audited",
+            feedback_id=str(feedback.feedback_id),
+            source=feedback.source,
+            category=feedback.category,
+            target_type=feedback.target.type,
+            target_id=feedback.target.id,
+            status=feedback.status,
         )
         return FeedbackHandlerResult(handled=True, detail="audited")
 

@@ -7,7 +7,7 @@ The provenance boundary is implemented by:
 
 ## Core idea
 
-`feedback-manager` does not capture provenance itself. It consumes provenance from `langgraph-xai` and translates it into a small framework-independent reference object. `langgraph-xai` is the mandatory, default, and only supported provenance source -- `FeedbackManager` takes an optional `provenance_adapter: XAIProvenanceAdapter | None` and depends on it directly, rather than through a generic pluggable contract, since there is exactly one provenance provider by design.
+`feedback-manager` does not capture provenance itself. It consumes provenance from `langgraph-xai` and translates it into a small framework-independent reference object. `langgraph-xai` is the mandatory, default, and only supported provenance source -- `FeedbackManager` takes an `xai_runtime: XAIRuntime | None` and builds `XAIProvenanceAdapter` for you automatically (or, for advanced call sites, an already-constructed `provenance_adapter: XAIProvenanceAdapter | None` directly), rather than through a generic pluggable contract, since there is exactly one provenance provider by design.
 
 ## Bundled adapter: `XAIProvenanceAdapter`
 

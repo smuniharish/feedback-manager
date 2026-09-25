@@ -2,10 +2,16 @@
 
 This is the single entry point most applications need. It wires together
 the extension points (store, router, correlator, failure policy,
-observability sink) plus an optional ``langgraph-xai`` provenance adapter
-via dependency injection -- there is no hidden global state, and every
+observability sink) plus provenance from ``langgraph-xai`` via dependency
+injection -- there is no hidden global state, and every
 :class:`FeedbackManager` instance is fully independent of every other one
 (Section 29 of the spec).
+
+Pass your ``langgraph_xai.XAIRuntime`` directly as ``xai_runtime`` and
+``FeedbackManager`` wires up :class:`XAIProvenanceAdapter` automatically
+(``langgraph-xai`` is the mandatory, sole provenance source, so there is
+nothing else to choose between). ``provenance_adapter`` remains available
+for tests or advanced call sites that already hold a constructed adapter.
 """
 
 from __future__ import annotations
@@ -14,6 +20,8 @@ import asyncio
 from collections.abc import AsyncIterator, Sequence
 from typing import Any
 from uuid import UUID
+
+from langgraph_xai import XAIRuntime
 
 from feedback_manager.api.queries import FeedbackQuery
 from feedback_manager.api.subscription import Subscription
@@ -65,6 +73,11 @@ class FeedbackManager:
     your own :class:`~feedback_manager.contracts.store.FeedbackStore`,
     :class:`~feedback_manager.contracts.router.FeedbackRouter`, etc. to
     plug in production infrastructure without modifying this class.
+
+    For provenance, pass your own ``langgraph_xai.XAIRuntime`` as
+    ``xai_runtime`` -- ``FeedbackManager`` builds the
+    :class:`~feedback_manager.integrations.xai.adapter.XAIProvenanceAdapter`
+    for you automatically.
     """
 
     def __init__(
@@ -73,18 +86,26 @@ class FeedbackManager:
         store: FeedbackStore | None = None,
         router: FeedbackRouter | None = None,
         correlator: FeedbackCorrelator | None = None,
+        xai_runtime: XAIRuntime | None = None,
         provenance_adapter: XAIProvenanceAdapter | None = None,
         lifecycle_policy: FeedbackLifecyclePolicy | None = None,
         redaction_policy: FeedbackPolicy | None = None,
         failure_policy: FailurePolicy | None = None,
         observability_sink: ObservabilitySink | None = None,
     ) -> None:
+        if provenance_adapter is not None and xai_runtime is not None:
+            raise ValueError("pass either xai_runtime or provenance_adapter, not both")
         self._store: FeedbackStore = store if store is not None else InMemoryFeedbackStore()
         self._router: FeedbackRouter = router if router is not None else DefaultFeedbackRouter()
         self._correlator: FeedbackCorrelator = (
             correlator if correlator is not None else DefaultFeedbackCorrelator()
         )
-        self._provenance_adapter = provenance_adapter
+        if provenance_adapter is not None:
+            self._provenance_adapter: XAIProvenanceAdapter | None = provenance_adapter
+        elif xai_runtime is not None:
+            self._provenance_adapter = XAIProvenanceAdapter(xai_runtime)
+        else:
+            self._provenance_adapter = None
         self._lifecycle_policy = lifecycle_policy
         self._redaction_policy = redaction_policy
         self._failure_policy = failure_policy if failure_policy is not None else FailurePolicy()

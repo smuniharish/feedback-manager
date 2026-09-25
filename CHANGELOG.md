@@ -38,7 +38,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `langgraph-xai` (mandatory runtime dependency): `XAIProvenanceAdapter`
     translating `Execution`/`NodeExecution`/`ToolExecution`/
     `HumanInteraction` into `FeedbackProvenanceReference`, live (in-run)
-    and post-run (via `ProvenanceStore`).
+    and post-run (via `ProvenanceStore`). `FeedbackManager` accepts an
+    `xai_runtime: XAIRuntime | None` and builds the adapter for you
+    automatically.
+- Structured logging via `structlog` (bundled `LoggingObservabilitySink`,
+  `AuditFeedbackHandler`, and best-effort failure-stage warnings), wired
+  through the stdlib `logging` module so host applications' existing
+  logging configuration (handlers, filters, `caplog` in tests) continues
+  to work without extra setup.
 - Six runnable examples covering human correction, HITL approval/
   rejection, tool failure/timeout, generation lifecycle events, evaluator
   feedback, and `langgraph-xai` provenance correlation.
