@@ -1,11 +1,11 @@
 # Correlation Model
 
-Feedback correlation is defined by:
+Feedback correlation uses:
 
-- `ExecutionContext` in `core/context.py`
-- `CorrelationContext` in `core/context.py`
-- `FeedbackCorrelator` protocol in `contracts/correlator.py`
-- `DefaultFeedbackCorrelator` in `correlation/correlator.py`
+- `ExecutionContext`
+- `CorrelationContext`
+- the `FeedbackCorrelator` protocol
+- `DefaultFeedbackCorrelator`
 
 ## Execution context
 
@@ -69,5 +69,6 @@ Because `FeedbackQuery` supports `correlation_id`, applications can retrieve rel
 
 ## LangGraph boundary
 
-`integrations/langgraph/adapter.py` provides `execution_context_from_config()`, which maps `RunnableConfig` data into an `ExecutionContext`. This is a translation step only; the core correlation model remains framework-independent.
-
+The public `execution_context_from_config()` framework helper maps
+`RunnableConfig` data into an `ExecutionContext`. This is a translation step
+only; the correlation model remains framework-independent.

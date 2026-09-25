@@ -1,6 +1,6 @@
 # Lifecycle Model
 
-The lifecycle state machine is implemented in `src/feedback_manager/core/lifecycle.py`.
+`FeedbackManager` enforces an explicit lifecycle state machine.
 
 ## States
 
@@ -114,4 +114,3 @@ Examples of illegal moves:
 - `ACKNOWLEDGED -> RESOLVED`
 - `HANDLED -> RECEIVED`
 - `RESOLVED -> ACKNOWLEDGED`
-

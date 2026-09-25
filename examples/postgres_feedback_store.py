@@ -3,10 +3,9 @@
 This demonstrates the intended extension pattern (Section 6 of the spec:
 "Custom database/ORM" is explicitly *out of scope* for feedback-manager
 itself -- applications bring their own persistence by implementing the
-:class:`~feedback_manager.contracts.store.FeedbackStore` ABC). This module
-is deliberately shipped under ``examples/``, not ``src/feedback_manager/``,
-because production persistence integrations are application concerns, not
-package concerns.
+:class:`~feedback_manager.contracts.FeedbackStore` ABC). This implementation
+is an application example rather than a bundled database backend because
+production persistence remains the application's responsibility.
 
 Requires ``psycopg[binary]>=3`` (see the ``examples`` dependency group in
 ``pyproject.toml``) and a reachable PostgreSQL instance. Tested against
@@ -34,10 +33,8 @@ import psycopg
 from psycopg.rows import dict_row
 from psycopg.types.json import Jsonb
 
-from feedback_manager.contracts.store import FeedbackQuery, FeedbackStore
-from feedback_manager.core.events import FeedbackEvent
-from feedback_manager.core.lifecycle import validate_transition
-from feedback_manager.core.status import FeedbackStatus
+from feedback_manager import FeedbackEvent, FeedbackStatus, validate_transition
+from feedback_manager.contracts import FeedbackQuery, FeedbackStore
 from feedback_manager.errors import FeedbackNotFoundError, FeedbackStoreError
 
 _SCHEMA = """

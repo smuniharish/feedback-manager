@@ -1,6 +1,6 @@
 # API Contract
 
-The root package exports a deliberately small public surface from `src/feedback_manager/__init__.py`.
+The root package exports a deliberately small, stable public surface.
 
 ## Public names in `__all__`
 
@@ -29,14 +29,18 @@ The root package exports a deliberately small public surface from `src/feedback_
 | `FeedbackValidationError` | Raised when a feedback model is invalid |
 | `Subscription` | Cancellation handle returned by `subscribe()` |
 | `__version__` | Package version string |
+| `validate_transition` | Validates lifecycle transitions for custom store implementations |
 
-## Intentionally not exported at the root
+## Specialized public namespaces
 
-The root package does not export everything in the repository. For example:
+The root namespace stays small. Specialized capabilities are intentionally
+grouped under stable public namespaces:
 
-- concrete storage/router/handler implementations live in subpackages
-- LangChain/LangGraph/XAI integrations live under `feedback_manager.integrations`
-- contracts live under `feedback_manager.contracts`
+- framework helpers: `feedback_manager.integrations.langchain` and
+  `feedback_manager.integrations.langgraph`
+- extension contracts: `feedback_manager.contracts`
+- default implementations for storage, routing, policies, handlers, and
+  observability: their documented package namespaces
 
-This keeps the root import surface stable.
-
+Undocumented modules and physical source-file paths are implementation
+details and are not part of the compatibility contract.

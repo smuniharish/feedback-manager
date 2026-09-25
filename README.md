@@ -25,7 +25,9 @@ Without a dedicated feedback model, that data usually ends up fragmented across 
 - correlation to runs, threads, checkpoints, nodes, tools, and generations
 - explicit lifecycle management
 - pluggable storage, routing, handlers, policies, and observability
-- thin integrations for LangChain, LangGraph, and `langgraph-xai`
+- framework helpers for LangChain callbacks and LangGraph human-in-the-loop
+  flows
+- provenance correlation backed exclusively by `langgraph-xai`
 
 ## What it does not do
 
@@ -65,15 +67,17 @@ Runtime dependencies are mandatory, not optional extras:
 - `langgraph-xai>=0.1.0,<0.2`
 - `pydantic>=2.12,<3`
 
-## Architecture at a glance
+## How it fits
 
-Layering:
+Applications interact with a small public surface:
 
-1. **public API** — `FeedbackManager`, `FeedbackQuery`, core domain types
-2. **application service** — orchestration in `api/manager.py`
-3. **domain model** — events, lifecycle, contexts, provenance reference
-4. **contracts** — store, router, handler, policies, subscribers
-5. **infrastructure/integrations** — memory store, default router, adapters
+- create and query feedback through `FeedbackManager`
+- describe feedback using `FeedbackEvent`, source, category, target, and
+  execution-context types
+- replace documented persistence, routing, handler, policy, and
+  observability contracts when production infrastructure requires it
+- pass `XAIRuntime` directly to `FeedbackManager` for provenance
+- opt into the documented LangChain or LangGraph helpers where useful
 
 The happy-path lifecycle is:
 
@@ -141,13 +145,13 @@ When used with `langgraph-xai`, feedback can carry a `FeedbackProvenanceReferenc
 import asyncio
 
 from feedback_manager import (
+    ExecutionContext,
     FeedbackCategory,
     FeedbackManager,
     FeedbackSource,
     FeedbackTarget,
     FeedbackTargetType,
 )
-from feedback_manager.core.context import ExecutionContext
 
 
 async def main() -> None:
@@ -296,7 +300,7 @@ from collections.abc import Sequence
 from uuid import UUID
 
 from feedback_manager.contracts import FeedbackQuery, FeedbackStore
-from feedback_manager.core import FeedbackEvent, FeedbackStatus
+from feedback_manager import FeedbackEvent, FeedbackStatus
 
 
 class MyStore(FeedbackStore):
@@ -312,7 +316,7 @@ class MyStore(FeedbackStore):
 
 ```python
 from feedback_manager.contracts import FeedbackContext, FeedbackHandler, FeedbackHandlerResult
-from feedback_manager.core import FeedbackEvent
+from feedback_manager import FeedbackEvent
 
 
 class HumanReviewHandler(FeedbackHandler):

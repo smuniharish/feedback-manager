@@ -2,10 +2,10 @@
 
 Routing is defined by:
 
-- `FeedbackRouter` ABC in `contracts/router.py`
-- `RoutingRule` and predicate helpers in `routing/rules.py`
-- `DefaultFeedbackRouter` in `routing/default_router.py`
-- `FeedbackHandler` ABC in `contracts/handler.py`
+- the `FeedbackRouter` ABC
+- `RoutingRule` and predicate helpers
+- `DefaultFeedbackRouter`
+- the `FeedbackHandler` ABC
 
 ## Routing responsibilities
 
@@ -62,4 +62,3 @@ The router does not:
 - make business decisions for the application
 
 Applications that need richer logic can implement `FeedbackRouter` directly.
-

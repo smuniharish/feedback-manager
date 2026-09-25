@@ -17,13 +17,13 @@ import selectors
 import sys
 
 from feedback_manager import (
+    ExecutionContext,
     FeedbackCategory,
     FeedbackManager,
     FeedbackSource,
     FeedbackTarget,
     FeedbackTargetType,
 )
-from feedback_manager.core.context import ExecutionContext
 
 
 async def _build_manager() -> FeedbackManager:

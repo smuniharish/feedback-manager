@@ -9,7 +9,7 @@ from collections.abc import Sequence
 from uuid import UUID
 
 from feedback_manager.contracts import FeedbackQuery, FeedbackStore
-from feedback_manager.core import FeedbackEvent, FeedbackStatus
+from feedback_manager import FeedbackEvent, FeedbackStatus, validate_transition
 
 
 class MyStore(FeedbackStore):
@@ -25,7 +25,7 @@ Important behavioral requirements from the contract docstring:
 
 - safe under concurrent use
 - `create()` must honor `idempotency_key`
-- `transition()` must validate lifecycle transitions
+- `transition()` must call the public `validate_transition()` helper before
+  persisting the new status
 
 The bundled `InMemoryFeedbackStore` is the reference implementation to follow.
-

@@ -5,7 +5,8 @@ This example wires `langchain.agents.create_agent` to two real, running
 reference filesystem server and the reference Playwright (browser
 automation) server -- loaded via `langchain-mcp-adapters`, and drives the
 agent with a real hosted LLM. Feedback capture uses nothing beyond
-`feedback-manager`'s existing LangChain integration (`FeedbackCallbackHandler`).
+`feedback-manager`'s public LangChain callback helper
+(`FeedbackCallbackHandler`).
 An `EVALUATOR`-sourced `QUALITY` feedback event is then submitted based on
 whether the agent's answer actually reflects the file it was asked to
 read -- an automated quality check independent of any tool failures the

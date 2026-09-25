@@ -7,7 +7,6 @@ Concurrency safety is currently centered on the store and the lifecycle model.
 - same-state lifecycle transitions are idempotent
 - multiple manager instances remain independent
 
-Validated by `tests/concurrency/test_concurrency.py`.
+These guarantees are covered by the concurrency test suite.
 
 See the full [concurrency architecture document](../architecture/CONCURRENCY_MODEL.md).
-

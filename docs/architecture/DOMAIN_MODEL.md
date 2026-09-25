@@ -1,10 +1,10 @@
 # Domain Model
 
-The feedback domain is defined in `src/feedback_manager/core/`.
+The feedback domain is exposed through stable public model types.
 
 ## `FeedbackEvent`
 
-Defined in `core/events.py`, `FeedbackEvent` is the central immutable-by-convention model.
+`FeedbackEvent` is the central immutable-by-convention model.
 
 ### Fields
 
@@ -35,8 +35,6 @@ The model is `frozen=True`. Updates happen by returning copies:
 
 ## `FeedbackSource`
 
-Defined in `core/sources.py`.
-
 `FeedbackSource` is an **open** string value, not a closed enum. Built-in well-known values:
 
 - `HUMAN`
@@ -51,8 +49,6 @@ Defined in `core/sources.py`.
 Applications may construct new values such as `FeedbackSource("mcp_server")`.
 
 ## `FeedbackCategory`
-
-Defined in `core/categories.py`.
 
 Also an open string value. Built-in well-known categories:
 
@@ -73,8 +69,6 @@ Also an open string value. Built-in well-known categories:
 - `COMPLETION`
 
 ## `FeedbackTargetType` and `FeedbackTarget`
-
-Defined in `core/targets.py`.
 
 ### `FeedbackTargetType`
 
@@ -108,8 +102,6 @@ Like source/category, this is open and extensible.
 
 ## `ExecutionContext`
 
-Defined in `core/context.py`.
-
 This is a thin, framework-independent bag of execution identifiers:
 
 - `application_id`
@@ -129,8 +121,6 @@ It also provides `is_empty()`.
 
 ## `CorrelationContext`
 
-Also in `core/context.py`.
-
 Fields:
 
 | Field | Type |
@@ -145,8 +135,6 @@ Fields:
 
 ## `FeedbackProvenanceReference`
 
-Defined in `core/provenance.py`.
-
 This is the small framework-independent shape used by the rest of the package. `langgraph-xai` is the mandatory, sole provenance source, so there is no `provider` field to disambiguate between multiple providers:
 
 | Field | Type |
@@ -159,11 +147,13 @@ This is the small framework-independent shape used by the rest of the package. `
 | `summary` | `str \| None` |
 | `metadata` | `dict[str, Any]` |
 
-`XAIProvenanceAdapter` populates execution/tool/human summary fields and metadata; `decision_id` and `evidence_ids` are part of the stable core shape but are not currently populated by the bundled adapter.
+The package populates execution/tool/human summary fields and metadata from
+`langgraph-xai`; `decision_id` and `evidence_ids` are part of the stable
+shape but are not currently populated.
 
 ## `FeedbackStatus`
 
-Defined in `core/status.py`. This is a closed `StrEnum`, unlike source/category/target types.
+This is a closed `StrEnum`, unlike source/category/target types.
 
 States:
 
@@ -182,4 +172,3 @@ Terminal statuses are collected in `TERMINAL_STATUSES`:
 - `REJECTED`
 - `CANCELLED`
 - `EXPIRED`
-

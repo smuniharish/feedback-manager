@@ -42,9 +42,9 @@ from feedback_manager import (
     FeedbackTargetType,
 )
 
-# The full well-known set for each axis (see core/sources.py, core/categories.py,
-# core/targets.py) -- each of these types is an open ``str`` subclass, so this
-# is "every value the package ships a named constant for", not a closed enum.
+# The full well-known set for each axis. Each type is an open ``str``
+# subclass, so this is "every value the package ships a named constant for",
+# not a closed enum.
 ALL_SOURCES: list[FeedbackSource] = [
     FeedbackSource.HUMAN,
     FeedbackSource.AGENT,

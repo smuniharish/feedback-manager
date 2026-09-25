@@ -1,18 +1,13 @@
-# Integration Model
+# Framework Boundary Model
 
-The package ships three integration boundaries under `src/feedback_manager/integrations/`.
+The package exposes two application-facing framework guides and one mandatory
+provenance boundary.
 
 ## Design principle
 
-Each integration is a **thin adapter** around a framework that already owns the underlying behavior.
+Each boundary is thin: the upstream framework continues to own execution.
 
-## LangChain integration
-
-Files:
-
-- `integrations/langchain/adapter.py`
-- `integrations/langchain/callbacks.py`
-- `integrations/langchain/tools.py`
+## LangChain boundary
 
 Responsibilities:
 
@@ -26,13 +21,7 @@ Not owned here:
 - callback dispatch mechanism itself
 - tool invocation
 
-## LangGraph integration
-
-Files:
-
-- `integrations/langgraph/adapter.py`
-- `integrations/langgraph/interrupt.py`
-- `integrations/langgraph/streaming.py`
+## LangGraph boundary
 
 Responsibilities:
 
@@ -47,17 +36,16 @@ Not owned here:
 - interrupt runtime
 - stream transport
 
-## `langgraph-xai` integration
+## Mandatory provenance boundary
 
-Files:
-
-- `integrations/xai/adapter.py`
+`langgraph-xai` is not an optional integration or a customization point. It is
+the sole provenance provider. Applications supply the same `XAIRuntime` used
+to instrument their graph to `FeedbackManager`.
 
 Responsibilities:
 
-- resolve provenance from `XAIRuntime.current_run`
-- fall back to `registry.get(ProvenanceStore)` by `run_id`
-- map `Execution` data into `FeedbackProvenanceReference`
+- correlate feedback with available `langgraph-xai` execution context
+- represent that correlation as `FeedbackProvenanceReference`
 
 Not owned here:
 
@@ -67,9 +55,9 @@ Not owned here:
 
 ## Resulting architecture
 
-Because the integrations are kept thin:
+Because the framework boundaries are kept thin:
 
 - the core domain stays framework-independent
 - framework upgrades are localized
-- applications can use only the parts they need while still having one coherent feedback model
-
+- applications opt into the LangChain/LangGraph helpers they need while
+  provenance remains consistently backed by `langgraph-xai`

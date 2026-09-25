@@ -47,16 +47,15 @@ nav:
       - Handlers: concepts/handlers.md
       - Stores: concepts/stores.md
       - Subscriptions: concepts/subscriptions.md
-  - Integrations:
-      - LangChain: integrations/langchain.md
-      - LangGraph: integrations/langgraph.md
-      - langgraph-xai: integrations/langgraph-xai.md
+  - Framework guides:
+      - LangChain callbacks and tools: frameworks/langchain.md
+      - LangGraph human-in-the-loop: frameworks/langgraph.md
   - API:
       - Overview: api/index.md
       - Package exports: api/package.md
       - FeedbackManager: api/manager.md
       - Contracts: api/contracts.md
-      - Integrations: api/integrations.md
+      - Framework helpers: api/framework-helpers.md
   - Examples:
       - Human correction: examples/human-correction.md
       - HITL approval: examples/hitl-approval.md
@@ -64,7 +63,7 @@ nav:
       - Generation interruption: examples/generation-interruption.md
       - Evaluator feedback: examples/evaluator-feedback.md
       - Provenance: examples/provenance.md
-      - Real-world integrations:
+      - Production examples:
           - PostgreSQL-backed store: examples/postgres-store.md
           - Human feedback capture UI (Streamlit): examples/streamlit-feedback-ui.md
           - create_agent + real MCP tools: examples/agent-mcp-create-agent.md
@@ -77,7 +76,6 @@ nav:
       - Custom handler: advanced/custom-handler.md
       - Custom router: advanced/custom-router.md
       - Custom source/category: advanced/custom-source-category.md
-      - "Provenance adapter (langgraph-xai only, not extensible)": advanced/provenance-adapter.md
   - Reliability:
       - Failure isolation: reliability/failure-isolation.md
       - Idempotency: reliability/idempotency.md
@@ -96,7 +94,7 @@ nav:
       - Extensibility model: architecture/EXTENSIBILITY_MODEL.md
       - Failure model: architecture/FAILURE_MODEL.md
       - Concurrency model: architecture/CONCURRENCY_MODEL.md
-      - Integration model: architecture/INTEGRATION_MODEL.md
+      - Framework boundary model: architecture/FRAMEWORK_BOUNDARY_MODEL.md
       - API contract: architecture/API_CONTRACT.md
       - Testing strategy: architecture/TESTING_STRATEGY.md
       - Security model: architecture/SECURITY_MODEL.md
@@ -105,7 +103,7 @@ nav:
           - 0002 reuse before reinventing: architecture/adr/0002-reuse-before-reinventing.md
           - 0003 ABC vs Protocol contracts: architecture/adr/0003-abc-vs-protocol-contracts.md
           - 0004 no self-improvement/runtime scope: architecture/adr/0004-no-self-improvement-or-agent-runtime-scope.md
-          - 0005 thin adapter integrations: architecture/adr/0005-thin-adapter-integrations.md
+          - 0005 thin framework boundaries: architecture/adr/0005-thin-framework-boundaries.md
           - 0006 abstract persistence: architecture/adr/0006-abstract-persistence.md
           - 0007 explicit lifecycle state machine: architecture/adr/0007-explicit-lifecycle-state-machine.md
   - FAQ: faq/index.md

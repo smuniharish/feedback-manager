@@ -6,15 +6,15 @@ This matrix documents what `feedback-manager` owns and what it intentionally lea
 
 | Concern | Owned here? | Notes |
 | --- | --- | --- |
-| Typed feedback event model | Yes | `core/events.py`, `core/sources.py`, `core/categories.py`, `core/targets.py` |
-| Feedback lifecycle state machine | Yes | `core/lifecycle.py` and lifecycle methods on `FeedbackManager` |
+| Typed feedback event model | Yes | `FeedbackEvent`, sources, categories, and targets |
+| Feedback lifecycle state machine | Yes | Lifecycle methods on `FeedbackManager` |
 | Correlation identifiers for feedback | Yes | `CorrelationContext`, `ExecutionContext`, `DefaultFeedbackCorrelator` |
 | Persistence contract for feedback | Yes | `FeedbackStore` ABC plus `InMemoryFeedbackStore` reference implementation |
 | Routing contract and default rule router | Yes | `FeedbackRouter`, `RoutingRule`, `DefaultFeedbackRouter` |
 | Handler contract | Yes | `FeedbackHandler` ABC |
 | Subscriber and stream delivery for feedback events | Yes | `subscribe()` and `stream()` on `FeedbackManager` |
 | Failure isolation around feedback stages | Yes | `FailurePolicy`, `FailureMode`, `FeedbackStage` |
-| Provenance adapter | Yes | `XAIProvenanceAdapter` (langgraph-xai is the mandatory, sole provenance source) |
+| Provenance correlation | Yes | Backed exclusively by the supplied `langgraph-xai` runtime |
 | Feedback observability events | Yes | `ObservabilityEvent`, `ObservabilitySink` |
 
 ## What FeedbackManager does not own
@@ -37,7 +37,7 @@ This matrix documents what `feedback-manager` owns and what it intentionally lea
 | Custom checkpoint stores | LangGraph / app code | This package does not wrap or replace checkpoint persistence |
 | Provenance capture engine | `langgraph-xai` | Only translation into `FeedbackProvenanceReference` is implemented |
 
-## Integration boundary principle
+## Framework boundary principle
 
 The code follows a simple rule:
 
@@ -47,7 +47,8 @@ Examples:
 
 - LangChain callbacks are reused directly through `FeedbackCallbackHandler`.
 - LangGraph interrupt/resume is reused directly through `HumanInTheLoopBridge`.
-- `langgraph-xai` runtime and provenance store are reused directly through `XAIProvenanceAdapter`.
+- the supplied `langgraph-xai` runtime remains responsible for provenance
+  capture and storage
 
 ## Consequence for application design
 
@@ -57,4 +58,3 @@ Applications should treat `FeedbackManager` as one subsystem in a larger stack:
 - use LangChain for model/tool composition
 - use `langgraph-xai` for provenance
 - use `FeedbackManager` to persist and route feedback about those runs
-

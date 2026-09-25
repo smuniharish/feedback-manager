@@ -1,6 +1,6 @@
 # Extensibility Model
 
-The extension points live in `src/feedback_manager/contracts/`.
+Extension points are published through `feedback_manager.contracts`.
 
 ## Design rule: ABC vs Protocol
 
@@ -113,7 +113,6 @@ Bundled implementation:
 - implement `FeedbackRouter` for custom dispatch rules
 - implement `FeedbackPolicy` for redaction or metadata filtering
 - provenance is not a generic extension point: `langgraph-xai` is the
-  mandatory, sole supported provenance source, and `FeedbackManager`
-  depends directly on `XAIProvenanceAdapter` (see
+  mandatory, sole supported provenance source; configure it by passing
+  `XAIRuntime` to `FeedbackManager` (see
   [PROVENANCE_MODEL.md](PROVENANCE_MODEL.md))
-

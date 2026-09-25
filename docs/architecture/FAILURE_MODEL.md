@@ -1,6 +1,6 @@
 # Failure Model
 
-Failure isolation is implemented in `src/feedback_manager/policies/failure.py`.
+Failure isolation is configured through `FailurePolicy`.
 
 ## Failure modes
 
@@ -82,4 +82,3 @@ The package does not currently implement:
 - handler concurrency pools
 
 Those belong in custom stores, routers, handlers, or application orchestration.
-

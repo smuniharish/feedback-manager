@@ -25,11 +25,11 @@ Primary entry points:
 - `feedback_manager.FeedbackQuery`
 - core value/model types such as `FeedbackEvent`, `FeedbackSource`, `FeedbackCategory`, and `FeedbackTarget`
 
-This surface is intentionally small and is exported from `src/feedback_manager/__init__.py`.
+This stable root surface is intentionally small.
 
 ### 2. Application service
 
-`src/feedback_manager/api/manager.py` contains `FeedbackManager`, the orchestration point for the feedback pipeline:
+`FeedbackManager` is the orchestration point for the feedback pipeline:
 
 1. build a `FeedbackEvent`
 2. optionally apply a redaction policy
@@ -44,7 +44,7 @@ This service wires together contracts through dependency injection. There is no 
 
 ### 3. Domain model
 
-`src/feedback_manager/core/` defines the framework-independent domain:
+The framework-independent domain consists of:
 
 - `FeedbackEvent`
 - `FeedbackSource`
@@ -54,32 +54,35 @@ This service wires together contracts through dependency injection. There is no 
 - `CorrelationContext`
 - `FeedbackProvenanceReference`
 - `FeedbackStatus`
-- lifecycle transition rules in `core/lifecycle.py`
+- explicit lifecycle transition rules
 
 The core layer never imports LangChain, LangGraph, or `langgraph-xai`.
 
 ### 4. Contracts
 
-`src/feedback_manager/contracts/` defines extension points:
+Documented extension contracts provide:
 
 - ABCs for stateful components with behavioral invariants, such as `FeedbackStore`, `FeedbackHandler`, `FeedbackRouter`, and the policy hooks
 - Protocols for structural contracts such as `FeedbackSubscriber`, `FeedbackSerializer`, and `FeedbackCorrelator`
 
-Provenance is deliberately **not** one of these generic contracts: `langgraph-xai` is a mandatory runtime dependency and the sole supported provenance source, so `FeedbackManager` depends directly on `XAIProvenanceAdapter` (see [PROVENANCE_MODEL.md](PROVENANCE_MODEL.md)).
+Provenance is deliberately **not** one of these generic contracts:
+`langgraph-xai` is a mandatory runtime dependency and the sole supported
+provenance source (see [Provenance model](PROVENANCE_MODEL.md)).
 
 This keeps the manager stable while making infrastructure replaceable.
 
-### 5. Infrastructure and integrations
+### 5. Defaults and framework boundaries
 
-Concrete implementations live in:
+The package provides:
 
-- `storage/` — `InMemoryFeedbackStore`
-- `routing/` — `DefaultFeedbackRouter`, `RoutingRule`
-- `correlation/` — `DefaultFeedbackCorrelator`
-- `handlers/` — `AuditFeedbackHandler`
-- `policies/` — failure, delivery, retention
-- `observability/` — event sink abstractions and logging sink
-- `integrations/` — thin adapters for LangChain, LangGraph, and `langgraph-xai`
+- `InMemoryFeedbackStore` for local/reference persistence
+- `DefaultFeedbackRouter` and `RoutingRule`
+- `DefaultFeedbackCorrelator`
+- `AuditFeedbackHandler`
+- failure, delivery, and retention policies
+- observability hooks and a logging sink
+- documented helpers for LangChain callbacks and LangGraph human-in-the-loop flows
+- automatic provenance correlation through the supplied `XAIRuntime`
 
 ## Pipeline ownership
 
@@ -116,15 +119,17 @@ Each `FeedbackManager` instance owns its own:
 - stream queues
 - policies and observability sink
 
-The tests explicitly verify that multiple manager instances remain isolated.
+Multiple manager instances are isolated by design.
 
-## Thin integration boundaries
+## Thin framework boundaries
 
-Framework-specific code is kept at the edge:
+Framework-specific behavior is kept at the edge:
 
-- `integrations/langchain/` translates callback errors and tool failures into feedback events
-- `integrations/langgraph/` extracts execution identifiers and wraps native `interrupt()` / `Command(resume=...)`
-- `integrations/xai/` translates `langgraph-xai` executions into `FeedbackProvenanceReference`
+- LangChain helpers translate callback errors and tool failures into feedback events
+- LangGraph helpers extract execution identifiers and record decisions around
+  native `interrupt()` / `Command(resume=...)` flows
+- the mandatory `langgraph-xai` boundary translates execution provenance into
+  `FeedbackProvenanceReference`
 
 This keeps the core domain stable even if framework details evolve.
 
@@ -137,4 +142,3 @@ Think of the package as:
 Not as:
 
 > an agent framework, scheduler, evaluator engine, provenance engine, or orchestration platform
-
