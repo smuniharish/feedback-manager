@@ -322,27 +322,6 @@ class HumanReviewHandler(FeedbackHandler):
         return FeedbackHandlerResult(handled=True, detail="queued for review")
 ```
 
-## Development
-
-Run tests:
-
-```powershell
-uv run pytest tests -q
-```
-
-Run coverage:
-
-```powershell
-.venv\Scripts\python.exe -m coverage run -m pytest tests -q
-.venv\Scripts\python.exe -m coverage report
-```
-
-Build docs:
-
-```powershell
-.venv\Scripts\python.exe -m mkdocs build --strict
-```
-
 ## Documentation
 
 The full documentation site lives under `docs/` and includes:
@@ -357,6 +336,11 @@ The full documentation site lives under `docs/` and includes:
 - reliability, security, testing, and FAQ pages
 
 Published documentation URL (project metadata): <https://feedback-manager.readthedocs.io>
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for local development setup, running
+the test suite/coverage, linting, type-checking, and building the docs site.
 
 ## Author and license
 

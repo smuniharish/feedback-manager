@@ -46,13 +46,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   through the stdlib `logging` module so host applications' existing
   logging configuration (handlers, filters, `caplog` in tests) continues
   to work without extra setup.
-- Six runnable examples covering human correction, HITL approval/
-  rejection, tool failure/timeout, generation lifecycle events, evaluator
-  feedback, and `langgraph-xai` provenance correlation.
+- Fourteen runnable examples: human correction, HITL approval/rejection,
+  tool failure/timeout, generation lifecycle events, evaluator feedback,
+  and `langgraph-xai` provenance correlation; overriding every injectable
+  default; an exhaustive (source, category, target type) coverage probe;
+  a real PostgreSQL-backed `FeedbackStore`; a real Streamlit feedback
+  capture UI; `create_agent`/`deepagents` agents driven by a real hosted
+  LLM over real MCP servers (filesystem, Playwright) with HITL approval
+  gates; and real Grafana dashboard/annotation observability over a real
+  PostgreSQL-backed event history.
 - Full test suite: unit, concurrency, and real-dependency integration
-  tests (no framework mocking) — 100 tests, 97% coverage.
+  tests (no framework mocking) — 101 tests, 97% coverage.
 - Full documentation site (MkDocs + Material), architecture docs, and
-  ADRs under `docs/architecture/`.
+  ADRs under `docs/architecture/`. Every example's documentation page
+  embeds the actual, real source file at build time (via
+  `pymdownx.snippets`), alongside genuinely captured run output, so the
+  docs cannot drift from the runnable examples.
 
 [Unreleased]: https://github.com/samamuniharish/feedback-manager/compare/v0.1.0...HEAD
 [0.1.0]: https://github.com/samamuniharish/feedback-manager/releases/tag/v0.1.0
