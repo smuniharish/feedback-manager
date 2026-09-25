@@ -1,28 +1,27 @@
 # Example: a real human-feedback capture UI (Streamlit)
 
-Source file: `examples/streamlit_feedback_ui.py`
+`feedback-manager` is a library, not a UI product -- but application
+developers still need *some* surface for a human to actually submit
+feedback. No existing Grafana-style panel maps cleanly onto
+"submit/acknowledge/resolve a `FeedbackEvent`", so this example is a
+small, real, runnable Streamlit app wired directly to a live
+`FeedbackManager`.
 
-`feedback-manager` is a library, not a UI product -- but application developers still need *some* surface for a human to actually submit feedback. No existing Grafana-style panel maps cleanly onto "submit/acknowledge/resolve a `FeedbackEvent`", so this example is a small, real, runnable Streamlit app wired directly to a live `FeedbackManager`.
+By default it uses `InMemoryFeedbackStore`. Set
+`FEEDBACK_MANAGER_POSTGRES_DSN` to point it at the real PostgreSQL store
+from the [previous example](postgres-store.md) instead, so feedback
+survives Streamlit's reruns and process restarts.
+
+Full source, embedded directly from `examples/streamlit_feedback_ui.py`:
+
+```python title="examples/streamlit_feedback_ui.py"
+--8<-- "examples/streamlit_feedback_ui.py"
+```
 
 Run it with:
 
 ```console
 $ uv run streamlit run examples/streamlit_feedback_ui.py
-```
-
-By default it uses `InMemoryFeedbackStore`. Set `FEEDBACK_MANAGER_POSTGRES_DSN` to point it at the real PostgreSQL store from the [previous example](postgres-store.md) instead, so feedback survives Streamlit's reruns and process restarts.
-
-Key pattern -- bridging `FeedbackManager`'s async API into Streamlit's synchronous script model:
-
-```python
-def _run(coro):
-    return asyncio.run(coro)
-
-@st.cache_resource
-def get_manager() -> FeedbackManager:
-    return FeedbackManager(store=...)  # shared across reruns in one session
-
-event = _run(manager.submit(source=..., category=..., target=..., payload=...))
 ```
 
 ## Verified against a real database

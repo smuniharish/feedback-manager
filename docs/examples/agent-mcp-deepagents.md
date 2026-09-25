@@ -1,36 +1,11 @@
 # Example: `deepagents` + real MCP tool + HITL feedback capture
 
-Source file: `examples/08_agent_deepagents_mcp.py`
-
 [`deepagents`](https://pypi.org/project/deepagents/) is a batteries-included agent harness built on LangGraph (planning, sub-agents, human-in-the-loop approval gates, its own filesystem tools). This example points deepagents' built-in filesystem tools at a real directory on disk via `FilesystemBackend`, loads the real Playwright MCP server as an additional tool, gates the destructive `edit_file` tool behind human approval, and uses `feedback-manager`'s `HumanInTheLoopBridge` to turn that pause into a durable feedback record -- exactly the "LangGraph interrupt -> FeedbackManager -> FeedbackEvent" flow the package is designed around. LangGraph still owns pausing/resuming; FeedbackManager only owns the record of *why* and *what was decided*.
 
-Key pattern -- HITL approval as feedback:
+Full source, embedded directly from `examples/08_agent_deepagents_mcp.py`:
 
-```python
-from deepagents import create_deep_agent
-from deepagents.backends import FilesystemBackend
-from feedback_manager.integrations.langgraph import HumanInTheLoopBridge, extract_interrupts
-
-agent = create_deep_agent(
-    model=llm,
-    tools=playwright_mcp_tools,
-    backend=FilesystemBackend(root_dir=workspace_dir, virtual_mode=False),
-    interrupt_on={"edit_file": True},
-    checkpointer=InMemorySaver(),
-)
-
-paused = await agent.ainvoke({"messages": [...]}, config=config)
-interrupts = extract_interrupts(paused)
-hitl_request = interrupts[0].value  # real HITLRequest from LangChain's HITL middleware
-
-feedback = await bridge.request(target=..., prompt=hitl_request)
-# ... human reviews the proposed edit in your application's UI ...
-resolved = await bridge.resolve(feedback.feedback_id, response="approved", approved=True)
-
-result = await agent.ainvoke(
-    bridge.resume_command({"decisions": [{"type": "approve"}]}),
-    config=config,
-)
+```python title="examples/08_agent_deepagents_mcp.py"
+--8<-- "examples/08_agent_deepagents_mcp.py"
 ```
 
 ## Real run: real pause, real approval, real file edit

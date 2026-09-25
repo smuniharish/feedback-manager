@@ -26,6 +26,11 @@ markdown_extensions:
   - pymdownx.inlinehilite
   - pymdownx.tabbed:
       alternate_style: true
+  - pymdownx.snippets:
+      base_path:
+        - "."
+      check_paths: true
+      dedent_subsections: true
 nav:
   - Home: index.md
   - Getting started:

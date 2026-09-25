@@ -1,7 +1,5 @@
 # Example: real Grafana observability over real feedback
 
-Source files: `examples/11_grafana_dashboard.py`, `examples/12_organic_scenarios_postgres.py`
-
 `feedback-manager` does not ship a custom telemetry backend or a custom UI
 (Section 6 of the design explicitly rules those out). Grafana + PostgreSQL is
 a mature, ubiquitous combination for exactly this job, so this example
@@ -24,6 +22,12 @@ $ podman run -d --name fm-grafana --network fm-net -p 3000:3000 \
 
 `fm-net` gives Grafana's provisioned PostgreSQL datasource DNS access to
 `fm-postgres:5432` by container name, instead of a raw IP.
+
+Full source, embedded directly from `examples/11_grafana_dashboard.py`:
+
+```python title="examples/11_grafana_dashboard.py"
+--8<-- "examples/11_grafana_dashboard.py"
+```
 
 ```console
 $ uv run python examples/11_grafana_dashboard.py
@@ -65,6 +69,12 @@ through the real `FeedbackManager` API (several taken through
 `acknowledge -> mark_handled -> resolve`). Combined with the other examples
 that also write to Postgres, every one of the 15 categories, all 13 target
 types, and all 8 sources now has real, organic, non-uniform counts:
+
+Full source, embedded directly from `examples/12_organic_scenarios_postgres.py`:
+
+```python title="examples/12_organic_scenarios_postgres.py"
+--8<-- "examples/12_organic_scenarios_postgres.py"
+```
 
 ```console
 $ uv run python examples/12_organic_scenarios_postgres.py
