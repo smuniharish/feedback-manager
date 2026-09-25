@@ -1,15 +1,22 @@
 # Architecture
 
-Source of truth: [`docs/architecture/`](../../../../docs/architecture) (in
-particular `ARCHITECTURE.md`, `DOMAIN_MODEL.md`, `LIFECYCLE.md`,
-`CORRELATION_MODEL.md`, `PROVENANCE_MODEL.md`, `ROUTING_MODEL.md`,
-`FAILURE_MODEL.md`, `CONCURRENCY_MODEL.md`, and
-`RESPONSIBILITY_MATRIX.md`) and
-[`src/feedback_manager/`](../../../../src/feedback_manager). The same
-material is published at
-[feedback-manager.readthedocs.io](https://feedback-manager.readthedocs.io)
-for consumers without a repository checkout. Read the linked source file,
-not just this summary, before asserting internal behavior.
+Source of truth: the
+[architecture docs](https://feedback-manager.readthedocs.io/en/latest/architecture/ARCHITECTURE/)
+(in particular
+[ARCHITECTURE](https://feedback-manager.readthedocs.io/en/latest/architecture/ARCHITECTURE/),
+[DOMAIN_MODEL](https://feedback-manager.readthedocs.io/en/latest/architecture/DOMAIN_MODEL/),
+[LIFECYCLE](https://feedback-manager.readthedocs.io/en/latest/architecture/LIFECYCLE/),
+[CORRELATION_MODEL](https://feedback-manager.readthedocs.io/en/latest/architecture/CORRELATION_MODEL/),
+[PROVENANCE_MODEL](https://feedback-manager.readthedocs.io/en/latest/architecture/PROVENANCE_MODEL/),
+[ROUTING_MODEL](https://feedback-manager.readthedocs.io/en/latest/architecture/ROUTING_MODEL/),
+[FAILURE_MODEL](https://feedback-manager.readthedocs.io/en/latest/architecture/FAILURE_MODEL/),
+[CONCURRENCY_MODEL](https://feedback-manager.readthedocs.io/en/latest/architecture/CONCURRENCY_MODEL/),
+and
+[RESPONSIBILITY_MATRIX](https://feedback-manager.readthedocs.io/en/latest/architecture/RESPONSIBILITY_MATRIX/))
+and the
+[`src/feedback_manager/`](https://github.com/smuniharish/feedback-manager/tree/master/src/feedback_manager)
+package. Read the linked source, not just this summary, before asserting
+internal behavior.
 
 ## What the package owns vs. what it does not
 
@@ -20,12 +27,15 @@ handling, its policies, and its observability events.
 It does not own: agent execution, graph orchestration, LangGraph interrupts,
 checkpoints, streaming, evaluators/LLM-as-judge logic, or business workflow.
 Those stay with LangChain, LangGraph, `langgraph-xai`, and the host
-application. See `docs/architecture/RESPONSIBILITY_MATRIX.md` and
-`docs/architecture/FRAMEWORK_BOUNDARY_MODEL.md` for the authoritative split.
+application. See
+[Responsibility matrix](https://feedback-manager.readthedocs.io/en/latest/architecture/RESPONSIBILITY_MATRIX/)
+and
+[Framework boundary model](https://feedback-manager.readthedocs.io/en/latest/architecture/FRAMEWORK_BOUNDARY_MODEL/)
+for the authoritative split.
 
 ## Public entry point
 
-`FeedbackManager` ([`src/feedback_manager/api/manager.py`](../../../../src/feedback_manager/api/manager.py))
+[`FeedbackManager`](https://github.com/smuniharish/feedback-manager/blob/master/src/feedback_manager/api/manager.py)
 is the single application service most code needs. Every dependency is an
 optional constructor keyword argument with an in-memory/no-op default, so
 `FeedbackManager()` is immediately usable, and every instance is fully
@@ -68,12 +78,14 @@ Rules:
   is what makes concurrent retries safe.
 
 Manager helper methods: `acknowledge()`, `mark_handled()`, `resolve()`,
-`reject()`, `cancel()`, `expire()`. See `docs/architecture/LIFECYCLE.md` for
-the exact transition table.
+`reject()`, `cancel()`, `expire()`. See the
+[Lifecycle model](https://feedback-manager.readthedocs.io/en/latest/architecture/LIFECYCLE/)
+for the exact transition table.
 
 ## Domain model
 
-Core types live in [`src/feedback_manager/core/`](../../../../src/feedback_manager/core):
+Core types live in
+[`src/feedback_manager/core/`](https://github.com/smuniharish/feedback-manager/tree/master/src/feedback_manager/core):
 
 - `FeedbackSource` (open string enum): `human`, `tool`, `generation`,
   `evaluator`, `system`, plus custom values.
@@ -88,13 +100,16 @@ Core types live in [`src/feedback_manager/core/`](../../../../src/feedback_manag
 
 `FeedbackSource`, `FeedbackCategory`, and `FeedbackTargetType` are
 intentionally open: prefer documented members, but a custom string value does
-not require modifying the package. See `docs/concepts/sources.md`,
-`docs/concepts/categories.md`, and `docs/concepts/targets.md`.
+not require modifying the package. See
+[Sources](https://feedback-manager.readthedocs.io/en/latest/concepts/sources/),
+[Categories](https://feedback-manager.readthedocs.io/en/latest/concepts/categories/),
+and
+[Targets](https://feedback-manager.readthedocs.io/en/latest/concepts/targets/).
 
 ## Correlation and provenance
 
-Correlation links a `FeedbackEvent` to the execution it came from
-(`docs/architecture/CORRELATION_MODEL.md`).
+Correlation links a `FeedbackEvent` to the execution it came from; see the
+[Correlation model](https://feedback-manager.readthedocs.io/en/latest/architecture/CORRELATION_MODEL/).
 
 Provenance answers "which execution produced the thing this feedback is
 about?" `feedback-manager` does not implement its own provenance capture:
@@ -105,31 +120,38 @@ automatically; `provenance_adapter=...` exists only for tests or advanced
 call sites that already hold a constructed adapter (passing both raises
 `ValueError`). If no matching execution context is available, `provenance`
 stays `None`; submission still succeeds unless the failure policy says
-otherwise. See `docs/architecture/PROVENANCE_MODEL.md` and
-`docs/concepts/provenance.md`.
+otherwise. See the
+[Provenance model](https://feedback-manager.readthedocs.io/en/latest/architecture/PROVENANCE_MODEL/)
+and [Provenance concept](https://feedback-manager.readthedocs.io/en/latest/concepts/provenance/).
 
 ## Routing and handling
 
-Routing (`docs/architecture/ROUTING_MODEL.md`, `docs/concepts/routing.md`)
+[Routing](https://feedback-manager.readthedocs.io/en/latest/architecture/ROUTING_MODEL/)
+(see also the
+[routing concept](https://feedback-manager.readthedocs.io/en/latest/concepts/routing/))
 selects which handlers should process an event; it does not invoke them.
 `FeedbackManager` invokes the selected handlers and applies failure
-isolation. Handlers (`docs/concepts/handlers.md`) are where application side
-effects live, implementing the `FeedbackHandler` contract's async `handle()`
-method.
+isolation.
+[Handlers](https://feedback-manager.readthedocs.io/en/latest/concepts/handlers/)
+are where application side effects live, implementing the `FeedbackHandler`
+contract's async `handle()` method.
 
 ## Failure isolation and concurrency
 
-Defaults (`docs/architecture/FAILURE_MODEL.md`,
-`docs/reliability/failure-isolation.md`):
+Defaults (see the
+[Failure model](https://feedback-manager.readthedocs.io/en/latest/architecture/FAILURE_MODEL/)
+and
+[Failure isolation](https://feedback-manager.readthedocs.io/en/latest/reliability/failure-isolation/)):
 
 - store failures are blocking;
 - routing, handler, subscriber, and provenance failures are best-effort.
 
-Concurrency (`docs/architecture/CONCURRENCY_MODEL.md`,
-`docs/reliability/concurrency.md`): `InMemoryFeedbackStore` uses an
-`asyncio.Lock`; submission dedup and same-state lifecycle transitions are
-safe under concurrent retries; multiple `FeedbackManager` instances remain
-independent of each other.
+Concurrency (see the
+[Concurrency model](https://feedback-manager.readthedocs.io/en/latest/architecture/CONCURRENCY_MODEL/)
+and [Concurrency](https://feedback-manager.readthedocs.io/en/latest/reliability/concurrency/)):
+`InMemoryFeedbackStore` uses an `asyncio.Lock`; submission dedup and
+same-state lifecycle transitions are safe under concurrent retries; multiple
+`FeedbackManager` instances remain independent of each other.
 
 ## Pull and push consumption
 
@@ -139,4 +161,4 @@ Pull: `manager.get(feedback_id)`, `manager.query(FeedbackQuery(...))`,
 Push: `manager.subscribe(async_subscriber)` returns a `Subscription` with
 `cancel()`/`active`; `manager.stream(query=None)` yields events as an async
 iterator. Subscriber failures are isolated by the failure policy. See
-`docs/concepts/subscriptions.md`.
+[Subscriptions](https://feedback-manager.readthedocs.io/en/latest/concepts/subscriptions/).

@@ -64,8 +64,9 @@ application-wide logging, a database ORM, or an evaluator/scoring framework.
 
 1. Inspect the installed/current `feedback-manager` version and the existing
    `FeedbackManager(...)` construction. In this repository,
-   [`pyproject.toml`](../../../pyproject.toml) and
-   [`src/feedback_manager/__init__.py`](../../../src/feedback_manager/__init__.py)
+   [`pyproject.toml`](https://github.com/smuniharish/feedback-manager/blob/master/pyproject.toml)
+   and
+   [`src/feedback_manager/__init__.py`](https://github.com/smuniharish/feedback-manager/blob/master/src/feedback_manager/__init__.py)
    are the version and public-API sources.
 2. Verify the project's `langchain-core`, `langgraph`, and `langgraph-xai`
    versions against its lockfile or dependency manifest.
@@ -78,7 +79,7 @@ application-wide logging, a database ORM, or an evaluator/scoring framework.
    in-memory/no-op defaults, so partial replacement is normal.
 4. Start from the repository example that matches the workload; see
    [`references/integration.md`](references/integration.md) and
-   [`examples/`](../../../examples).
+   [`examples/`](https://github.com/smuniharish/feedback-manager/tree/master/examples).
 5. Use the supported constructor, documented methods, and documented contracts
    only. The package has no CLI, global registry, or hidden state; every
    `FeedbackManager` instance is fully independent.

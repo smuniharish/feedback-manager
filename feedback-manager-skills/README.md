@@ -51,4 +51,4 @@ behavior changes:
    required.
 
 The distribution is covered by the repository's Apache-2.0 license; see the
-[repository license](../LICENSE).
+[repository license](https://github.com/smuniharish/feedback-manager/blob/master/LICENSE).

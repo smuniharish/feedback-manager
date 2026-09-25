@@ -1,13 +1,13 @@
 # Integration
 
-Source of truth: [`docs/getting-started/`](../../../../docs/getting-started),
-[`docs/frameworks/`](../../../../docs/frameworks),
-[`docs/examples/`](../../../../docs/examples), and
-[`examples/`](../../../../examples), also published at
-[feedback-manager.readthedocs.io](https://feedback-manager.readthedocs.io)
-and [github.com/smuniharish/feedback-manager](https://github.com/smuniharish/feedback-manager).
-Prefer the actual example script closest to the workload over re-deriving
-code from memory.
+Source of truth: the
+[Getting started](https://feedback-manager.readthedocs.io/en/latest/getting-started/quickstart/),
+[Framework guides](https://feedback-manager.readthedocs.io/en/latest/frameworks/langchain/),
+and [Examples](https://feedback-manager.readthedocs.io/en/latest/examples/human-correction/)
+docs, and the
+[`examples/`](https://github.com/smuniharish/feedback-manager/tree/master/examples)
+directory. Prefer the actual example script closest to the workload over
+re-deriving code from memory.
 
 ## Minimal quickstart (root package only)
 
@@ -52,8 +52,10 @@ async def main() -> None:
 asyncio.run(main())
 ```
 
-See [`docs/getting-started/quickstart.md`](../../../../docs/getting-started/quickstart.md)
-and [`examples/01_human_correction.py`](../../../../examples/01_human_correction.py).
+See the
+[Quickstart](https://feedback-manager.readthedocs.io/en/latest/getting-started/quickstart/)
+and
+[`examples/01_human_correction.py`](https://github.com/smuniharish/feedback-manager/blob/master/examples/01_human_correction.py).
 
 ## LangChain: capture callback failures and tool failures
 
@@ -85,9 +87,11 @@ async with capture_tool_feedback(manager, tool_call_id="call-123"):
     await my_tool()
 ```
 
-See [`docs/frameworks/langchain.md`](../../../../docs/frameworks/langchain.md),
-[`docs/examples/tool-failure.md`](../../../../docs/examples/tool-failure.md), and
-[`examples/03_tool_failure.py`](../../../../examples/03_tool_failure.py).
+See
+[LangChain callbacks and tools](https://feedback-manager.readthedocs.io/en/latest/frameworks/langchain/),
+[Tool failure example](https://feedback-manager.readthedocs.io/en/latest/examples/tool-failure/),
+and
+[`examples/03_tool_failure.py`](https://github.com/smuniharish/feedback-manager/blob/master/examples/03_tool_failure.py).
 
 ## LangGraph: execution context and human-in-the-loop
 
@@ -128,10 +132,12 @@ owning pause, persistence, and resume:
 Use `extract_interrupts()` to pull native interrupt objects out of a stream
 chunk before presenting them to a human-facing channel.
 
-See [`docs/frameworks/langgraph.md`](../../../../docs/frameworks/langgraph.md),
-[`docs/examples/hitl-approval.md`](../../../../docs/examples/hitl-approval.md),
-[`examples/02_hitl_approval.py`](../../../../examples/02_hitl_approval.py), and
-[`examples/08_agent_deepagents_mcp.py`](../../../../examples/08_agent_deepagents_mcp.py)
+See
+[LangGraph human-in-the-loop](https://feedback-manager.readthedocs.io/en/latest/frameworks/langgraph/),
+[HITL approval example](https://feedback-manager.readthedocs.io/en/latest/examples/hitl-approval/),
+[`examples/02_hitl_approval.py`](https://github.com/smuniharish/feedback-manager/blob/master/examples/02_hitl_approval.py),
+and
+[`examples/08_agent_deepagents_mcp.py`](https://github.com/smuniharish/feedback-manager/blob/master/examples/08_agent_deepagents_mcp.py)
 for the same pattern around a real tool approval gate.
 
 ## Provenance (langgraph-xai)
@@ -149,23 +155,25 @@ runtime = XAIRuntime(
 manager = FeedbackManager(xai_runtime=runtime)
 ```
 
-See [`docs/concepts/provenance.md`](../../../../docs/concepts/provenance.md),
-[`docs/examples/provenance.md`](../../../../docs/examples/provenance.md), and
-[`examples/06_provenance.py`](../../../../examples/06_provenance.py).
+See
+[Provenance concept](https://feedback-manager.readthedocs.io/en/latest/concepts/provenance/),
+[Provenance example](https://feedback-manager.readthedocs.io/en/latest/examples/provenance/),
+and
+[`examples/06_provenance.py`](https://github.com/smuniharish/feedback-manager/blob/master/examples/06_provenance.py).
 
 ## Matching an example to a workload
 
 | Workload | Example |
 | --- | --- |
-| Human correction | [`examples/01_human_correction.py`](../../../../examples/01_human_correction.py) |
-| HITL approval around a native interrupt | [`examples/02_hitl_approval.py`](../../../../examples/02_hitl_approval.py) |
-| Tool failure via callbacks | [`examples/03_tool_failure.py`](../../../../examples/03_tool_failure.py) |
-| Generation interruption / partial result | [`examples/04_generation_interruption.py`](../../../../examples/04_generation_interruption.py) |
-| Evaluator/LLM-as-judge feedback | [`examples/05_evaluator_feedback.py`](../../../../examples/05_evaluator_feedback.py) |
-| Provenance with `langgraph-xai` | [`examples/06_provenance.py`](../../../../examples/06_provenance.py) |
-| Full agent with MCP tools via `create_agent` | [`examples/07_agent_mcp_create_agent.py`](../../../../examples/07_agent_mcp_create_agent.py) |
-| Full agent with `deepagents` + MCP + HITL | [`examples/08_agent_deepagents_mcp.py`](../../../../examples/08_agent_deepagents_mcp.py) |
-| Overriding manager defaults (custom store/router/policy) | [`examples/09_override_defaults.py`](../../../../examples/09_override_defaults.py) |
-| Full feedback matrix in one run | [`examples/10_full_matrix_feedback.py`](../../../../examples/10_full_matrix_feedback.py) |
-| Grafana observability dashboard | [`examples/11_grafana_dashboard.py`](../../../../examples/11_grafana_dashboard.py) |
-| Postgres-backed store at scale | [`examples/12_organic_scenarios_postgres.py`](../../../../examples/12_organic_scenarios_postgres.py) |
+| Human correction | [`examples/01_human_correction.py`](https://github.com/smuniharish/feedback-manager/blob/master/examples/01_human_correction.py) |
+| HITL approval around a native interrupt | [`examples/02_hitl_approval.py`](https://github.com/smuniharish/feedback-manager/blob/master/examples/02_hitl_approval.py) |
+| Tool failure via callbacks | [`examples/03_tool_failure.py`](https://github.com/smuniharish/feedback-manager/blob/master/examples/03_tool_failure.py) |
+| Generation interruption / partial result | [`examples/04_generation_interruption.py`](https://github.com/smuniharish/feedback-manager/blob/master/examples/04_generation_interruption.py) |
+| Evaluator/LLM-as-judge feedback | [`examples/05_evaluator_feedback.py`](https://github.com/smuniharish/feedback-manager/blob/master/examples/05_evaluator_feedback.py) |
+| Provenance with `langgraph-xai` | [`examples/06_provenance.py`](https://github.com/smuniharish/feedback-manager/blob/master/examples/06_provenance.py) |
+| Full agent with MCP tools via `create_agent` | [`examples/07_agent_mcp_create_agent.py`](https://github.com/smuniharish/feedback-manager/blob/master/examples/07_agent_mcp_create_agent.py) |
+| Full agent with `deepagents` + MCP + HITL | [`examples/08_agent_deepagents_mcp.py`](https://github.com/smuniharish/feedback-manager/blob/master/examples/08_agent_deepagents_mcp.py) |
+| Overriding manager defaults (custom store/router/policy) | [`examples/09_override_defaults.py`](https://github.com/smuniharish/feedback-manager/blob/master/examples/09_override_defaults.py) |
+| Full feedback matrix in one run | [`examples/10_full_matrix_feedback.py`](https://github.com/smuniharish/feedback-manager/blob/master/examples/10_full_matrix_feedback.py) |
+| Grafana observability dashboard | [`examples/11_grafana_dashboard.py`](https://github.com/smuniharish/feedback-manager/blob/master/examples/11_grafana_dashboard.py) |
+| Postgres-backed store at scale | [`examples/12_organic_scenarios_postgres.py`](https://github.com/smuniharish/feedback-manager/blob/master/examples/12_organic_scenarios_postgres.py) |
