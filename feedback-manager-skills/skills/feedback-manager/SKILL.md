@@ -147,3 +147,42 @@ application-wide logging, a database ORM, or an evaluator/scoring framework.
 | Wiring into a LangChain/LangGraph application, quickstart | [`references/integration.md`](references/integration.md) |
 | Custom stores, routers, handlers, policies, observability | [`references/extensibility.md`](references/extensibility.md) |
 | Errors, failure isolation, concurrency, debugging steps | [`references/troubleshooting.md`](references/troubleshooting.md) |
+
+## Prohibited shortcuts
+
+Do **not**:
+
+- manually truncate, drop, or fabricate feedback records instead of using
+  `FeedbackManager`'s submission and lifecycle methods;
+- build a second event bus, ticketing model, or feedback schema alongside
+  `FeedbackEvent`;
+- subclass or monkeypatch `FeedbackManager` to add a store, router, handler,
+  policy, or observability integration instead of injecting one through its
+  constructor;
+- implement a custom provenance adapter; `langgraph-xai` is the sole,
+  mandatory provenance source;
+- silently reorder or drop an application's existing middleware, callback, or
+  handler wiring;
+- invent imports, CLI commands, environment variables, or constructor options
+  not present in `feedback_manager.__init__` or the contracts;
+- catch `FeedbackManagerError` (or a subclass) and discard it without
+  handling the failure or re-raising;
+- modify `src/feedback_manager/` while the task is only integration or skill
+  content.
+
+## Verification checklist
+
+For an application change, add or update a focused test that uses a real
+`FeedbackEvent`/`ExecutionContext` shape and asserts the relevant outcome:
+lifecycle transition, correlation, routing selection, handler invocation,
+failure isolation, or provenance resolution. Run the project's format, lint,
+type, and test commands (`uv run ruff check`, `uv run mypy`,
+`uv run pytest -q`).
+
+For changes to this skill, follow
+[`../../validation/README.md`](../../validation/README.md). Consult the
+authoritative
+[feedback-manager documentation](https://feedback-manager.readthedocs.io)
+and
+[example collection](https://github.com/smuniharish/feedback-manager/tree/master/examples)
+rather than expanding this file into a second manual.
