@@ -27,6 +27,7 @@ from __future__ import annotations
 import asyncio
 import os
 from collections.abc import Sequence
+from typing import Any
 from uuid import UUID
 
 import psycopg
@@ -64,19 +65,32 @@ class PostgresFeedbackStore(FeedbackStore):
     but backed by the database rather than an in-process lock.
     """
 
-    def __init__(self, dsn: str) -> None:
+    def __init__(self, dsn: str, *, connect_timeout: float = 5.0) -> None:
         self._dsn = dsn
+        self._connect_timeout = connect_timeout
+
+    def _connect(self, **kwargs: object) -> Any:
+        return psycopg.AsyncConnection.connect(
+            self._dsn, connect_timeout=self._connect_timeout, **kwargs
+        )
 
     @classmethod
-    async def connect(cls, dsn: str) -> PostgresFeedbackStore:
-        """Create the store and ensure its schema exists."""
-        store = cls(dsn)
-        async with await psycopg.AsyncConnection.connect(dsn) as conn:
+    async def connect(cls, dsn: str, *, connect_timeout: float = 5.0) -> PostgresFeedbackStore:
+        """Create the store and ensure its schema exists.
+
+        ``connect_timeout`` bounds how long the initial TCP/handshake
+        attempt may take, so a misconfigured or unreachable DSN fails fast
+        (typically within a few seconds) instead of hanging indefinitely --
+        e.g. in CI or any environment without a reachable PostgreSQL
+        instance.
+        """
+        store = cls(dsn, connect_timeout=connect_timeout)
+        async with await store._connect() as conn:
             await conn.execute(_SCHEMA)
         return store
 
     async def create(self, feedback: FeedbackEvent) -> FeedbackEvent:
-        async with await psycopg.AsyncConnection.connect(self._dsn) as conn:
+        async with await self._connect() as conn:
             if feedback.idempotency_key is not None:
                 existing = await conn.execute(
                     "SELECT data FROM feedback_events WHERE idempotency_key = %s",
@@ -104,7 +118,7 @@ class PostgresFeedbackStore(FeedbackStore):
             return feedback
 
     async def get(self, feedback_id: UUID) -> FeedbackEvent | None:
-        async with await psycopg.AsyncConnection.connect(self._dsn) as conn:
+        async with await self._connect() as conn:
             cur = await conn.execute(
                 "SELECT data FROM feedback_events WHERE feedback_id = %s", (feedback_id,)
             )
@@ -112,7 +126,7 @@ class PostgresFeedbackStore(FeedbackStore):
             return FeedbackEvent.model_validate(row[0]) if row is not None else None
 
     async def update(self, feedback: FeedbackEvent) -> FeedbackEvent:
-        async with await psycopg.AsyncConnection.connect(self._dsn) as conn:
+        async with await self._connect() as conn:
             cur = await conn.execute(
                 "UPDATE feedback_events SET status = %s, data = %s WHERE feedback_id = %s",
                 (
@@ -168,7 +182,7 @@ class PostgresFeedbackStore(FeedbackStore):
             sql += " LIMIT %s"
             params.append(query.limit)
 
-        async with await psycopg.AsyncConnection.connect(self._dsn, row_factory=dict_row) as conn:
+        async with await self._connect(row_factory=dict_row) as conn:
             cur = await conn.execute(sql, params)
             rows = await cur.fetchall()
             return [FeedbackEvent.model_validate(row["data"]) for row in rows]
