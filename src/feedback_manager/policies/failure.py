@@ -8,13 +8,14 @@ subscriber, serialization, provenance) is wrapped through
 
 from __future__ import annotations
 
-import logging
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import TypeVar
 
-logger = logging.getLogger("feedback_manager.policies.failure")
+from feedback_manager import _logging
+
+logger = _logging.get_logger("feedback_manager.policies.failure")
 
 T = TypeVar("T")
 
@@ -83,7 +84,12 @@ class FailurePolicy:
                 on_error(stage, exc)
             if self.mode_for(stage) is FailureMode.BLOCKING:
                 raise
-            logger.warning("feedback_manager stage %s failed (best-effort): %s", stage.value, exc)
+            logger.warning(
+                "feedback_manager stage failed (best-effort)",
+                stage=stage.value,
+                error=str(exc),
+                error_type=type(exc).__name__,
+            )
             return None
 
 

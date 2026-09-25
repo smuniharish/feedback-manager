@@ -2,7 +2,8 @@
 
 Instruments a real LangGraph graph with ``langgraph-xai``'s ``XAIRuntime``
 and attaches the resulting execution provenance to feedback submitted from
-inside a running node, via ``XAIProvenanceAdapter``.
+inside a running node. Pass the runtime straight to ``FeedbackManager`` via
+``xai_runtime`` -- it wires up the provenance adapter automatically.
 
 Run with::
 
@@ -22,7 +23,6 @@ from feedback_manager import (
     FeedbackTarget,
     FeedbackTargetType,
 )
-from feedback_manager.integrations.xai import XAIProvenanceAdapter
 
 
 class State(TypedDict):
@@ -31,7 +31,7 @@ class State(TypedDict):
 
 async def main() -> None:
     runtime = XAIRuntime(application_id="support-bot", tenant_id="acme-corp", graph_id="qa-graph")
-    manager = FeedbackManager(provenance_adapter=XAIProvenanceAdapter(runtime))
+    manager = FeedbackManager(xai_runtime=runtime)
 
     async def answer_node(state: State) -> State:
         # Feedback submitted while a node is executing automatically picks up

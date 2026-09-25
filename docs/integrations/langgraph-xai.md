@@ -20,17 +20,16 @@ File:
 from langgraph_xai import XAIRuntime
 
 from feedback_manager import FeedbackManager
-from feedback_manager.integrations.xai import XAIProvenanceAdapter
 
 runtime = XAIRuntime(
     application_id="support-bot",
     tenant_id="acme-corp",
     graph_id="qa-graph",
 )
-manager = FeedbackManager(provenance_adapter=XAIProvenanceAdapter(runtime))
+manager = FeedbackManager(xai_runtime=runtime)
 ```
 
-When a graph instrumented by that runtime calls `manager.submit(...)` inside a node, provenance can be attached immediately.
+`FeedbackManager` builds the `XAIProvenanceAdapter` for you from `xai_runtime`. When a graph instrumented by that runtime calls `manager.submit(...)` inside a node, provenance can be attached immediately.
 
 See `examples/06_provenance.py` and `tests/integration/test_xai_provenance.py`.
 

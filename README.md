@@ -260,20 +260,20 @@ This complements LangGraph's runtime instead of replacing it.
 
 ## Provenance example
 
-Attach provenance from `langgraph-xai`:
+Attach provenance from `langgraph-xai` by passing the runtime directly --
+`FeedbackManager` wires up the provenance adapter automatically:
 
 ```python
 from langgraph_xai import XAIRuntime
 
 from feedback_manager import FeedbackManager
-from feedback_manager.integrations.xai import XAIProvenanceAdapter
 
 runtime = XAIRuntime(
     application_id="support-bot",
     tenant_id="acme-corp",
     graph_id="qa-graph",
 )
-manager = FeedbackManager(provenance_adapter=XAIProvenanceAdapter(runtime))
+manager = FeedbackManager(xai_runtime=runtime)
 ```
 
 When `manager.submit(...)` runs inside an instrumented graph node, the adapter can resolve provenance from `runtime.current_run`.

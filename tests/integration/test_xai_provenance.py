@@ -26,8 +26,7 @@ class _State(TypedDict):
 
 async def test_provenance_is_attached_during_active_run() -> None:
     runtime = XAIRuntime(application_id="test-app", tenant_id="test-tenant", graph_id="test-graph")
-    adapter = XAIProvenanceAdapter(runtime)
-    manager = FeedbackManager(provenance_adapter=adapter)
+    manager = FeedbackManager(xai_runtime=runtime)
     captured: list[object] = []
 
     async def node(state: _State) -> _State:

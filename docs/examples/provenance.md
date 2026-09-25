@@ -8,7 +8,7 @@ Key pattern:
 
 ```python
 runtime = XAIRuntime(application_id="support-bot", tenant_id="acme-corp", graph_id="qa-graph")
-manager = FeedbackManager(provenance_adapter=XAIProvenanceAdapter(runtime))
+manager = FeedbackManager(xai_runtime=runtime)
 ...
 feedback = await manager.submit(
     source=FeedbackSource.AGENT,
