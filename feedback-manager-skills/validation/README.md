@@ -22,8 +22,8 @@ For every change:
    both the capability and when to activate it.
 4. Confirm only `name` and `description` appear in frontmatter unless the
    current specification and a demonstrated host requirement justify more.
-5. Resolve every relative Markdown target in the skill, its references, and
-   this directory; no target may point at a deleted file.
+5. Resolve every Markdown target in the skill, its references, and this
+   directory; no target may point at a deleted file or a broken URL.
 6. Confirm the distribution contains one `skills/feedback-manager/` canonical
    knowledge source and no Claude/Codex/Copilot duplicate.
 7. Search the distribution for invented CLI commands, stale package names,
@@ -35,16 +35,16 @@ Review every code snippet and factual claim against its source:
 
 | Claim area | Source of truth |
 | --- | --- |
-| Public import and package version | [`src/feedback_manager/__init__.py`](../../src/feedback_manager/__init__.py) |
-| `FeedbackManager` constructor signature and pipeline | [`src/feedback_manager/api/manager.py`](../../src/feedback_manager/api/manager.py) |
-| Dependencies and supported Python/LangChain/LangGraph floors | [`pyproject.toml`](../../pyproject.toml) |
-| Contracts (store, router, handler, correlator, policy) | [`src/feedback_manager/contracts/`](../../src/feedback_manager/contracts) |
-| Errors | [`src/feedback_manager/errors/exceptions.py`](../../src/feedback_manager/errors/exceptions.py) |
-| Observability events | [`src/feedback_manager/observability/hooks.py`](../../src/feedback_manager/observability/hooks.py) |
-| Architecture and domain rules | [`docs/architecture/`](../../docs/architecture) |
-| Concepts (lifecycle, routing, stores, handlers, provenance, subscriptions) | [`docs/concepts/`](../../docs/concepts) |
-| Framework integration | [`docs/frameworks/langchain.md`](../../docs/frameworks/langchain.md), [`docs/frameworks/langgraph.md`](../../docs/frameworks/langgraph.md) |
-| Executable workflows | [`examples/`](../../examples) and [`tests/`](../../tests) |
+| Public import and package version | [`src/feedback_manager/__init__.py`](https://github.com/smuniharish/feedback-manager/blob/master/src/feedback_manager/__init__.py) |
+| `FeedbackManager` constructor signature and pipeline | [`src/feedback_manager/api/manager.py`](https://github.com/smuniharish/feedback-manager/blob/master/src/feedback_manager/api/manager.py) |
+| Dependencies and supported Python/LangChain/LangGraph floors | [`pyproject.toml`](https://github.com/smuniharish/feedback-manager/blob/master/pyproject.toml) |
+| Contracts (store, router, handler, correlator, policy) | [`src/feedback_manager/contracts/`](https://github.com/smuniharish/feedback-manager/tree/master/src/feedback_manager/contracts) |
+| Errors | [`src/feedback_manager/errors/exceptions.py`](https://github.com/smuniharish/feedback-manager/blob/master/src/feedback_manager/errors/exceptions.py) |
+| Observability events | [`src/feedback_manager/observability/hooks.py`](https://github.com/smuniharish/feedback-manager/blob/master/src/feedback_manager/observability/hooks.py) |
+| Architecture and domain rules | [Architecture docs](https://feedback-manager.readthedocs.io/en/latest/architecture/ARCHITECTURE/) |
+| Concepts (lifecycle, routing, stores, handlers, provenance, subscriptions) | [Concepts docs](https://feedback-manager.readthedocs.io/en/latest/concepts/lifecycle/) |
+| Framework integration | [LangChain guide](https://feedback-manager.readthedocs.io/en/latest/frameworks/langchain/), [LangGraph guide](https://feedback-manager.readthedocs.io/en/latest/frameworks/langgraph/) |
+| Executable workflows | [`examples/`](https://github.com/smuniharish/feedback-manager/tree/master/examples) and [`tests/`](https://github.com/smuniharish/feedback-manager/tree/master/tests) |
 
 If a behavior lacks an implementation, test, or authoritative document, omit
 it from the skill rather than infer an API.
@@ -57,14 +57,14 @@ runtime implementation, and the linked examples/tests.
 
 | Task | Activates | Grounded route | Avoids |
 | --- | --- | --- | --- |
-| "Record human corrections to generated answers." | Yes | `references/integration.md` → quickstart and `examples/01_human_correction.py`. | Ad hoc logging or a duplicate feedback model. |
+| "Record human corrections to generated answers." | Yes | `references/integration.md` → quickstart and [`examples/01_human_correction.py`](https://github.com/smuniharish/feedback-manager/blob/master/examples/01_human_correction.py). | Ad hoc logging or a duplicate feedback model. |
 | "Capture the human decision around my LangGraph interrupt approval gate." | Yes | `HumanInTheLoopBridge` flow in `references/integration.md`. | A second interrupt/resume mechanism. |
 | "Turn tool timeouts into queryable records." | Yes | `FeedbackCallbackHandler` / `capture_tool_feedback()` guidance. | Silently swallowing tool exceptions. |
-| "Why did resolve() raise a lifecycle error?" | Yes | `references/troubleshooting.md` lifecycle section and `docs/architecture/LIFECYCLE.md`. | Forcing an illegal transition or catching `Exception` broadly. |
-| "I need Postgres persistence for feedback." | Yes | `references/extensibility.md` store contract plus `examples/postgres_feedback_store.py`. | Subclassing `FeedbackManager` or skipping `validate_transition()`. |
+| "Why did resolve() raise a lifecycle error?" | Yes | `references/troubleshooting.md` lifecycle section and the [Lifecycle model](https://feedback-manager.readthedocs.io/en/latest/architecture/LIFECYCLE/). | Forcing an illegal transition or catching `Exception` broadly. |
+| "I need Postgres persistence for feedback." | Yes | `references/extensibility.md` store contract plus [`examples/postgres_feedback_store.py`](https://github.com/smuniharish/feedback-manager/blob/master/examples/postgres_feedback_store.py). | Subclassing `FeedbackManager` or skipping `validate_transition()`. |
 | "Add provenance so I know which run produced this feedback." | Yes | `xai_runtime=...` wiring in `references/integration.md` and `references/architecture.md`. | Implementing a custom provenance adapter. |
 | "My custom handler's failure isn't propagating — is that a bug?" | Yes | Failure-isolation explanation in `references/troubleshooting.md`. | Assuming a package defect without checking `FailurePolicy`. |
-| "Wire feedback events into our Grafana/OpenTelemetry setup." | Yes | `ObservabilitySink` guidance in `references/extensibility.md` and `examples/11_grafana_dashboard.py`. | Adding tracing calls inside handlers instead of a sink. |
+| "Wire feedback events into our Grafana/OpenTelemetry setup." | Yes | `ObservabilitySink` guidance in `references/extensibility.md` and [`examples/11_grafana_dashboard.py`](https://github.com/smuniharish/feedback-manager/blob/master/examples/11_grafana_dashboard.py). | Adding tracing calls inside handlers instead of a sink. |
 
 ## Repository validation
 

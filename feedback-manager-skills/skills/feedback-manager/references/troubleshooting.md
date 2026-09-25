@@ -1,12 +1,15 @@
 # Troubleshooting
 
-Source of truth: [`src/feedback_manager/errors/exceptions.py`](../../../../src/feedback_manager/errors/exceptions.py),
-[`docs/architecture/FAILURE_MODEL.md`](../../../../docs/architecture/FAILURE_MODEL.md),
-[`docs/reliability/`](../../../../docs/reliability), and
-[`docs/faq/index.md`](../../../../docs/faq/index.md), also published at
-[feedback-manager.readthedocs.io](https://feedback-manager.readthedocs.io).
-Reproduce first with the exact source/category/target/payload/execution_context
-in use; do not guess at a fix from the exception name alone.
+Source of truth:
+[`src/feedback_manager/errors/exceptions.py`](https://github.com/smuniharish/feedback-manager/blob/master/src/feedback_manager/errors/exceptions.py),
+the
+[Failure model](https://feedback-manager.readthedocs.io/en/latest/architecture/FAILURE_MODEL/),
+the
+[Reliability docs](https://feedback-manager.readthedocs.io/en/latest/reliability/failure-isolation/),
+and the
+[FAQ](https://feedback-manager.readthedocs.io/en/latest/faq/). Reproduce
+first with the exact source/category/target/payload/execution_context in
+use; do not guess at a fix from the exception name alone.
 
 ## Exception hierarchy
 
@@ -78,10 +81,11 @@ code.
 
 `InMemoryFeedbackStore` uses an `asyncio.Lock` and is safe under concurrent
 use with idempotent submission and idempotent same-state transitions. A
-custom store must provide equivalent guarantees (see
-`docs/architecture/CONCURRENCY_MODEL.md` and
-`docs/reliability/concurrency.md`); this is a common gap when replacing the
-default store.
+custom store must provide equivalent guarantees (see the
+[Concurrency model](https://feedback-manager.readthedocs.io/en/latest/architecture/CONCURRENCY_MODEL/)
+and
+[Concurrency](https://feedback-manager.readthedocs.io/en/latest/reliability/concurrency/));
+this is a common gap when replacing the default store.
 
 ### "Feedback never expires"
 
@@ -104,8 +108,9 @@ call it and then invoke `manager.expire(feedback_id)` itself.
    it against the contract requirements in
    [`references/extensibility.md`](extensibility.md) before assuming a
    package bug.
-6. Only after the above, consult
-   [`docs/faq/index.md`](../../../../docs/faq/index.md) and the architecture
-   docs under [`docs/architecture/`](../../../../docs/architecture) for the
-   authoritative behavior, and the test suite under
-   [`tests/`](../../../../tests) for executable evidence of expected behavior.
+6. Only after the above, consult the
+   [FAQ](https://feedback-manager.readthedocs.io/en/latest/faq/) and the
+   [architecture docs](https://feedback-manager.readthedocs.io/en/latest/architecture/ARCHITECTURE/)
+   for the authoritative behavior, and the
+   [test suite](https://github.com/smuniharish/feedback-manager/tree/master/tests)
+   for executable evidence of expected behavior.
