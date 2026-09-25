@@ -22,9 +22,6 @@ class FeedbackProvenanceReference(BaseModel):
 
     model_config = ConfigDict(frozen=True)
 
-    provider: str
-    """Identifies which provenance system produced this reference, e.g. ``"langgraph-xai"``."""
-
     execution_id: str | None = None
     decision_id: str | None = None
     evidence_ids: tuple[str, ...] = Field(default_factory=tuple)

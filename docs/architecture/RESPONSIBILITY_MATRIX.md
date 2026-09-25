@@ -14,7 +14,7 @@ This matrix documents what `feedback-manager` owns and what it intentionally lea
 | Handler contract | Yes | `FeedbackHandler` ABC |
 | Subscriber and stream delivery for feedback events | Yes | `subscribe()` and `stream()` on `FeedbackManager` |
 | Failure isolation around feedback stages | Yes | `FailurePolicy`, `FailureMode`, `FeedbackStage` |
-| Provenance adapter boundary | Yes | Contract plus `XAIProvenanceAdapter` |
+| Provenance adapter | Yes | `XAIProvenanceAdapter` (langgraph-xai is the mandatory, sole provenance source) |
 | Feedback observability events | Yes | `ObservabilityEvent`, `ObservabilitySink` |
 
 ## What FeedbackManager does not own

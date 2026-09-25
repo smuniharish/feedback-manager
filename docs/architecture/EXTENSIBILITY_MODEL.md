@@ -15,7 +15,6 @@ Examples:
 - `FeedbackSubscriber`
 - `FeedbackSerializer`
 - `FeedbackCorrelator`
-- `FeedbackProvenanceAdapter`
 
 Why:
 
@@ -94,10 +93,6 @@ Method:
 
 - `correlate(feedback, execution_context) -> CorrelationContext`
 
-#### `FeedbackProvenanceAdapter`
-
-- `resolve(correlation) -> FeedbackProvenanceReference | None`
-
 #### `FeedbackSerializer`
 
 - `serialize(feedback) -> dict[str, Any]`
@@ -117,5 +112,8 @@ Bundled implementation:
 - implement `FeedbackHandler` for side effects or downstream workflows
 - implement `FeedbackRouter` for custom dispatch rules
 - implement `FeedbackPolicy` for redaction or metadata filtering
-- implement `FeedbackProvenanceAdapter` if provenance comes from a system other than `langgraph-xai`
+- provenance is not a generic extension point: `langgraph-xai` is the
+  mandatory, sole supported provenance source, and `FeedbackManager`
+  depends directly on `XAIProvenanceAdapter` (see
+  [PROVENANCE_MODEL.md](PROVENANCE_MODEL.md))
 

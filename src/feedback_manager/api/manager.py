@@ -1,10 +1,11 @@
 """``FeedbackManager``: the small, stable public application service.
 
 This is the single entry point most applications need. It wires together
-the extension points (store, router, correlator, provenance adapter,
-failure policy, observability sink) via dependency injection -- there is no
-hidden global state, and every :class:`FeedbackManager` instance is fully
-independent of every other one (Section 29 of the spec).
+the extension points (store, router, correlator, failure policy,
+observability sink) plus an optional ``langgraph-xai`` provenance adapter
+via dependency injection -- there is no hidden global state, and every
+:class:`FeedbackManager` instance is fully independent of every other one
+(Section 29 of the spec).
 """
 
 from __future__ import annotations
@@ -19,7 +20,6 @@ from feedback_manager.api.subscription import Subscription
 from feedback_manager.contracts.correlator import FeedbackCorrelator
 from feedback_manager.contracts.handler import FeedbackContext
 from feedback_manager.contracts.policy import FeedbackLifecyclePolicy, FeedbackPolicy
-from feedback_manager.contracts.provenance import FeedbackProvenanceAdapter
 from feedback_manager.contracts.router import FeedbackRouter
 from feedback_manager.contracts.store import FeedbackStore
 from feedback_manager.contracts.subscriber import FeedbackSubscriber
@@ -31,6 +31,7 @@ from feedback_manager.core.status import FeedbackStatus
 from feedback_manager.core.targets import FeedbackTarget
 from feedback_manager.correlation.correlator import DefaultFeedbackCorrelator
 from feedback_manager.errors import FeedbackNotFoundError, FeedbackStoreError
+from feedback_manager.integrations.xai.adapter import XAIProvenanceAdapter
 from feedback_manager.observability.hooks import (
     FEEDBACK_ACKNOWLEDGED,
     FEEDBACK_CREATED,
@@ -72,7 +73,7 @@ class FeedbackManager:
         store: FeedbackStore | None = None,
         router: FeedbackRouter | None = None,
         correlator: FeedbackCorrelator | None = None,
-        provenance_adapter: FeedbackProvenanceAdapter | None = None,
+        provenance_adapter: XAIProvenanceAdapter | None = None,
         lifecycle_policy: FeedbackLifecyclePolicy | None = None,
         redaction_policy: FeedbackPolicy | None = None,
         failure_policy: FailurePolicy | None = None,
