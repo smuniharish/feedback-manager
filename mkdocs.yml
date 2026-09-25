@@ -59,6 +59,12 @@ nav:
       - Generation interruption: examples/generation-interruption.md
       - Evaluator feedback: examples/evaluator-feedback.md
       - Provenance: examples/provenance.md
+      - Real-world integrations:
+          - PostgreSQL-backed store: examples/postgres-store.md
+          - Human feedback capture UI (Streamlit): examples/streamlit-feedback-ui.md
+          - create_agent + real MCP tools: examples/agent-mcp-create-agent.md
+          - deepagents + real MCP + HITL: examples/agent-mcp-deepagents.md
+          - Overriding every default: examples/override-defaults.md
   - Advanced:
       - Custom store: advanced/custom-store.md
       - Custom handler: advanced/custom-handler.md
