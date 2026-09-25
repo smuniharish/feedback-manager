@@ -94,12 +94,19 @@ def _category_options() -> list[str]:
 
 
 def _source_options() -> list[str]:
+    # All eight well-known FeedbackSource values (FeedbackSource is an open
+    # string type, so this is the full "well-known" set, not an exhaustive
+    # enum) -- every source feedback-manager is designed to accept, not
+    # just human-submitted feedback.
     return [
         FeedbackSource.HUMAN,
         FeedbackSource.AGENT,
+        FeedbackSource.GENERATION,
+        FeedbackSource.TOOL,
         FeedbackSource.EVALUATOR,
         FeedbackSource.APPLICATION,
-        FeedbackSource.TOOL,
+        FeedbackSource.SYSTEM,
+        FeedbackSource.EXTERNAL,
     ]
 
 

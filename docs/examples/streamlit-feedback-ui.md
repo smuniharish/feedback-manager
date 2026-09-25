@@ -43,3 +43,32 @@ The first row (`f85a4ae6...`) was submitted through the UI's "Submit feedback" f
 ## Screenshot
 
 ![Streamlit feedback capture UI, showing a submitted feedback event](../assets/screenshots/streamlit-submit.png)
+
+## Every `FeedbackSource`, submitted for real through the UI
+
+The dropdown exposes all eight well-known `FeedbackSource` values (not just
+`human`), and each one was actually clicked and submitted through the running
+UI, then verified against the real PostgreSQL row it produced:
+
+![Streamlit feed showing one real submission per FeedbackSource value](../assets/screenshots/streamlit-all-sources.png)
+
+```console
+$ podman exec fm-postgres psql -U feedback -d feedback_manager \
+    -c "SELECT status, data->>'source' AS source, data->'target'->>'id' AS target FROM feedback_events ORDER BY created_at;"
+    status    |   source    |         target
+--------------+-------------+-------------------------
+ resolved     | human       | postgres-demo
+ acknowledged | human       | streamlit-ui-demo-run
+ received     | agent       | agent-source-demo
+ received     | generation  | generation-source-demo
+ received     | tool        | tool-source-demo
+ received     | evaluator   | evaluator-source-demo
+ received     | application | application-source-demo
+ received     | system      | system-source-demo
+ received     | external    | external-source-demo
+(9 rows)
+```
+
+For exhaustive coverage of every *combination* of source, category, and
+target type (not just source in isolation), see
+[the full matrix example](full-matrix.md).

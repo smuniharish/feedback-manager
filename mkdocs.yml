@@ -65,6 +65,8 @@ nav:
           - create_agent + real MCP tools: examples/agent-mcp-create-agent.md
           - deepagents + real MCP + HITL: examples/agent-mcp-deepagents.md
           - Overriding every default: examples/override-defaults.md
+          - Every source/category/target combination: examples/full-matrix.md
+          - Real Grafana observability: examples/grafana-observability.md
   - Advanced:
       - Custom store: advanced/custom-store.md
       - Custom handler: advanced/custom-handler.md
