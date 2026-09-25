@@ -11,6 +11,9 @@ Run with::
 """
 
 import asyncio
+import os
+import selectors
+import sys
 from typing import Any, TypedDict
 
 from langgraph.checkpoint.memory import InMemorySaver
@@ -18,6 +21,29 @@ from langgraph.graph import END, START, StateGraph
 
 from feedback_manager import FeedbackManager, FeedbackTarget, FeedbackTargetType
 from feedback_manager.integrations.langgraph import HumanInTheLoopBridge, extract_interrupts
+
+
+async def _build_manager() -> FeedbackManager:
+    # Zero-config by default (in-memory store); set FEEDBACK_MANAGER_POSTGRES_DSN
+    # to run this exact scenario against the real PostgreSQL store instead --
+    # see docs/examples/grafana-observability.md.
+    dsn = os.environ.get("FEEDBACK_MANAGER_POSTGRES_DSN")
+    if not dsn:
+        return FeedbackManager()
+    from postgres_feedback_store import PostgresFeedbackStore
+
+    store = await PostgresFeedbackStore.connect(dsn)
+    return FeedbackManager(store=store)
+
+
+def _run(coro):
+    # psycopg's async mode needs a selector event loop; Windows defaults to
+    # the proactor loop, so only override it there.
+    if sys.platform == "win32":
+        return asyncio.run(
+            coro, loop_factory=lambda: asyncio.SelectorEventLoop(selectors.SelectSelector())
+        )
+    return asyncio.run(coro)
 
 
 class State(TypedDict):
@@ -40,7 +66,7 @@ def build_graph() -> Any:
 
 
 async def main() -> None:
-    manager = FeedbackManager()
+    manager = await _build_manager()
     bridge = HumanInTheLoopBridge(manager)
     compiled = build_graph()
     config = {"configurable": {"thread_id": "hitl-example-1"}}
@@ -64,4 +90,4 @@ async def main() -> None:
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    _run(main())

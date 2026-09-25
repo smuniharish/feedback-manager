@@ -88,6 +88,64 @@ $ podman exec fm-postgres psql -U feedback -d feedback_manager -c \
             44 |                  15 |                     13 |                 8
 ```
 
+## Closing the gap at the source: examples 1-8 against the real store
+
+`examples/12_organic_scenarios_postgres.py` proves every combination *can*
+be captured organically, but it is a separate script -- it does not, by
+itself, prove that the actual documented examples (1-8) generate that same
+variety when pointed at a real store instead of the default in-memory one.
+So `examples/01_human_correction.py` through `examples/08_agent_deepagents_mcp.py`
+each gained a small `_build_manager()` helper:
+
+```python
+async def _build_manager() -> FeedbackManager:
+    dsn = os.environ.get("FEEDBACK_MANAGER_POSTGRES_DSN")
+    if not dsn:
+        return FeedbackManager()  # zero-config default: in-memory store
+    from postgres_feedback_store import PostgresFeedbackStore
+
+    store = await PostgresFeedbackStore.connect(dsn)
+    return FeedbackManager(store=store)
+```
+
+Unset, every example still runs with zero setup exactly as before (the
+in-memory store). With `FEEDBACK_MANAGER_POSTGRES_DSN` set, the *same*
+example code -- human correction, LangGraph HITL approval, LangChain tool
+timeout, generation interruption, evaluator quality feedback, and
+`langgraph-xai` provenance -- writes to the real Postgres store instead:
+
+```console
+$ $env:FEEDBACK_MANAGER_POSTGRES_DSN="postgresql://feedback:feedback@192.168.65.189:5432/feedback_manager"
+$ uv run python examples\01_human_correction.py
+Agent answered: 'The capital of Australia is Sydney.'
+Correction recorded: id=a4d445f0-ea68-4567-bcea-69169e0aef37 status=received
+Correction resolved: status=resolved metadata={'resolution': {'applied': True, 'channel': 'manual_review'}}
+--- exit: 0 ---
+... (02 through 06 all exit 0)
+```
+
+After running examples 1-6 for real against Postgres, the organic total
+grew from 44 to 53 rows, still spanning all 15 categories, all 13 target
+types, and all 8 sources -- but now sourced directly from the actual
+documented examples, not only the dedicated coverage script:
+
+```console
+$ podman exec fm-postgres psql -U feedback -d feedback_manager -c \
+    "SELECT count(*) AS organic_total, count(DISTINCT data->>'category') AS categories, \
+            count(DISTINCT data->'target'->>'type') AS target_types, \
+            count(DISTINCT data->>'source') AS sources \
+     FROM feedback_events WHERE NOT COALESCE((data->'payload'->>'matrix_probe')::boolean, false);"
+ organic_total | categories | target_types | sources
+---------------+------------+--------------+---------
+            53 |         15 |           13 |       8
+```
+
+Reloading the live Grafana dashboard confirms the same thing visually: the
+"Organic events by category" panel now shows a real, non-zero bar for
+`interruption` (2 events) alongside all 14 other categories, and "Organic
+events by target type" is fully populated too -- no more empty rows for any
+category or target type.
+
 ## Screenshots (real, live dashboard)
 
 Real, organic feedback -- every source, category, and target type now has a

@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import asyncio
 import os
+import selectors
 import sys
 from pathlib import Path
 
@@ -42,6 +43,29 @@ from feedback_manager import (
 from feedback_manager.integrations.langchain import FeedbackCallbackHandler
 
 WORKSPACE_DIR = Path(__file__).parent / "mcp_workspace"
+
+
+async def _build_manager() -> FeedbackManager:
+    # Zero-config by default (in-memory store); set FEEDBACK_MANAGER_POSTGRES_DSN
+    # to run this exact scenario against the real PostgreSQL store instead --
+    # see docs/examples/grafana-observability.md.
+    dsn = os.environ.get("FEEDBACK_MANAGER_POSTGRES_DSN")
+    if not dsn:
+        return FeedbackManager()
+    from postgres_feedback_store import PostgresFeedbackStore
+
+    store = await PostgresFeedbackStore.connect(dsn)
+    return FeedbackManager(store=store)
+
+
+def _run(coro):
+    # psycopg's async mode needs a selector event loop; Windows defaults to
+    # the proactor loop, so only override it there.
+    if sys.platform == "win32":
+        return asyncio.run(
+            coro, loop_factory=lambda: asyncio.SelectorEventLoop(selectors.SelectSelector())
+        )
+    return asyncio.run(coro)
 
 
 def _npx_command() -> str:
@@ -88,7 +112,7 @@ def build_llm() -> ChatOpenAI:
 
 
 async def main() -> None:
-    manager = FeedbackManager()
+    manager = await _build_manager()
     handler = FeedbackCallbackHandler(manager)
 
     print("Connecting to real MCP servers (filesystem + playwright)...")
@@ -141,4 +165,4 @@ async def main() -> None:
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    _run(main())
