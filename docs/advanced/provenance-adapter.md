@@ -1,10 +1,13 @@
-# Provenance: `langgraph-xai` only
+# Provenance adapter: `langgraph-xai` only (not a customization point)
 
 Unlike `FeedbackStore`, `FeedbackHandler`, `FeedbackRouter`, and the
-policy hooks, provenance is **not** a generic, pluggable extension point.
-`langgraph-xai` is a mandatory runtime dependency and the sole supported
-provenance source, so `FeedbackManager` depends directly on
-`XAIProvenanceAdapter` rather than on a generic `Protocol`/`ABC` contract.
+policy hooks -- which genuinely are extension points, implemented against
+an `ABC`/`Protocol` so applications can plug in their own -- provenance is
+**deliberately not pluggable**. `langgraph-xai` is a mandatory runtime
+dependency and the *only* supported provenance source. There is no
+`FeedbackProvenanceAdapter` `ABC`/`Protocol` to implement against and no
+extension point here: `FeedbackManager` depends directly on the concrete
+`XAIProvenanceAdapter` class.
 
 Pass your `XAIRuntime` straight to `FeedbackManager` via `xai_runtime` --
 it builds the `XAIProvenanceAdapter` for you automatically:

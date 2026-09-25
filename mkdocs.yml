@@ -77,7 +77,7 @@ nav:
       - Custom handler: advanced/custom-handler.md
       - Custom router: advanced/custom-router.md
       - Custom source/category: advanced/custom-source-category.md
-      - Custom provenance adapter (langgraph-xai only): advanced/custom-provenance-adapter.md
+      - "Provenance adapter (langgraph-xai only, not extensible)": advanced/provenance-adapter.md
   - Reliability:
       - Failure isolation: reliability/failure-isolation.md
       - Idempotency: reliability/idempotency.md
