@@ -1,0 +1,98 @@
+site_name: feedback-manager
+site_description: Feedback infrastructure for LangChain/LangGraph applications
+site_url: https://feedback-manager.readthedocs.io
+repo_url: https://github.com/samamuniharish/feedback-manager
+theme:
+  name: material
+  features:
+    - navigation.sections
+    - navigation.expand
+    - content.code.copy
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          paths:
+            - src
+          options:
+            show_root_heading: true
+            show_source: false
+markdown_extensions:
+  - admonition
+  - toc:
+      permalink: true
+  - pymdownx.superfences
+  - pymdownx.inlinehilite
+  - pymdownx.tabbed:
+      alternate_style: true
+nav:
+  - Home: index.md
+  - Getting started:
+      - Installation: getting-started/installation.md
+      - Quickstart: getting-started/quickstart.md
+  - Concepts:
+      - Sources: concepts/sources.md
+      - Categories: concepts/categories.md
+      - Targets: concepts/targets.md
+      - Lifecycle: concepts/lifecycle.md
+      - Correlation: concepts/correlation.md
+      - Provenance: concepts/provenance.md
+      - Routing: concepts/routing.md
+      - Handlers: concepts/handlers.md
+      - Stores: concepts/stores.md
+      - Subscriptions: concepts/subscriptions.md
+  - Integrations:
+      - LangChain: integrations/langchain.md
+      - LangGraph: integrations/langgraph.md
+      - langgraph-xai: integrations/langgraph-xai.md
+  - API:
+      - Overview: api/index.md
+      - Package exports: api/package.md
+      - FeedbackManager: api/manager.md
+      - Contracts: api/contracts.md
+      - Integrations: api/integrations.md
+  - Examples:
+      - Human correction: examples/human-correction.md
+      - HITL approval: examples/hitl-approval.md
+      - Tool failure: examples/tool-failure.md
+      - Generation interruption: examples/generation-interruption.md
+      - Evaluator feedback: examples/evaluator-feedback.md
+      - Provenance: examples/provenance.md
+  - Advanced:
+      - Custom store: advanced/custom-store.md
+      - Custom handler: advanced/custom-handler.md
+      - Custom router: advanced/custom-router.md
+      - Custom source/category: advanced/custom-source-category.md
+      - Custom provenance adapter: advanced/custom-provenance-adapter.md
+  - Reliability:
+      - Failure isolation: reliability/failure-isolation.md
+      - Idempotency: reliability/idempotency.md
+      - Concurrency: reliability/concurrency.md
+  - Security: security/index.md
+  - Testing: testing/index.md
+  - Architecture:
+      - Overview: architecture/ARCHITECTURE.md
+      - Responsibility matrix: architecture/RESPONSIBILITY_MATRIX.md
+      - Dependency matrix: architecture/DEPENDENCY_MATRIX.md
+      - Domain model: architecture/DOMAIN_MODEL.md
+      - Lifecycle model: architecture/LIFECYCLE.md
+      - Correlation model: architecture/CORRELATION_MODEL.md
+      - Provenance model: architecture/PROVENANCE_MODEL.md
+      - Routing model: architecture/ROUTING_MODEL.md
+      - Extensibility model: architecture/EXTENSIBILITY_MODEL.md
+      - Failure model: architecture/FAILURE_MODEL.md
+      - Concurrency model: architecture/CONCURRENCY_MODEL.md
+      - Integration model: architecture/INTEGRATION_MODEL.md
+      - API contract: architecture/API_CONTRACT.md
+      - Testing strategy: architecture/TESTING_STRATEGY.md
+      - Security model: architecture/SECURITY_MODEL.md
+      - ADRs:
+          - 0001 langgraph-xai mandatory dependency: architecture/adr/0001-langgraph-xai-mandatory-dependency.md
+          - 0002 reuse before reinventing: architecture/adr/0002-reuse-before-reinventing.md
+          - 0003 ABC vs Protocol contracts: architecture/adr/0003-abc-vs-protocol-contracts.md
+          - 0004 no self-improvement/runtime scope: architecture/adr/0004-no-self-improvement-or-agent-runtime-scope.md
+          - 0005 thin adapter integrations: architecture/adr/0005-thin-adapter-integrations.md
+          - 0006 abstract persistence: architecture/adr/0006-abstract-persistence.md
+          - 0007 explicit lifecycle state machine: architecture/adr/0007-explicit-lifecycle-state-machine.md
+  - FAQ: faq/index.md
