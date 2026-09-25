@@ -1,11 +1,13 @@
-"""Structural contract for provenance adapters (e.g. langgraph-xai).
+"""Contract for provenance adapters.
 
 FeedbackManager does not implement provenance/explainability itself; it
-*consumes* it from execution frameworks such as ``langgraph-xai`` through
-this small ``Protocol``. Each framework integration provides its own
-implementation (see :mod:`feedback_manager.integrations.xai.adapter`);
-custom execution frameworks can plug in their own without touching core
-FeedbackManager code.
+*consumes* it from an execution framework. ``langgraph-xai`` is the only
+provenance source this package ships an adapter for --
+:class:`feedback_manager.integrations.xai.adapter.XAIProvenanceAdapter` --
+and it is what you should use directly in almost every case. This
+``Protocol`` exists only so the core domain and ``FeedbackManager`` do not
+import ``langgraph_xai`` types directly (Section 40 of the design spec);
+it is not meant to invite a menagerie of alternative provenance sources.
 """
 
 from __future__ import annotations
