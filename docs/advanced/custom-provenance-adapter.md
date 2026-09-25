@@ -1,26 +1,22 @@
-# Custom provenance adapter
+# Provenance: `langgraph-xai` only
 
-Implement `FeedbackProvenanceAdapter` if provenance comes from something other than `langgraph-xai`.
-
-```python
-from feedback_manager.contracts import FeedbackProvenanceAdapter
-from feedback_manager.core import CorrelationContext, FeedbackProvenanceReference
-
-
-class MyProvenanceAdapter(FeedbackProvenanceAdapter):
-    async def resolve(
-        self, correlation: CorrelationContext
-    ) -> FeedbackProvenanceReference | None:
-        return FeedbackProvenanceReference(
-            provider="my-system",
-            execution_id=correlation.execution.run_id if correlation.execution else None,
-            summary="resolved from external provenance service",
-        )
-```
-
-Then pass it to the manager:
+Unlike `FeedbackStore`, `FeedbackHandler`, `FeedbackRouter`, and the
+policy hooks, provenance is **not** a generic, pluggable extension point.
+`langgraph-xai` is a mandatory runtime dependency and the sole supported
+provenance source, so `FeedbackManager` depends directly on
+`XAIProvenanceAdapter` rather than on a generic `Protocol`/`ABC` contract.
 
 ```python
-manager = FeedbackManager(provenance_adapter=MyProvenanceAdapter())
+from langgraph_xai import XAIRuntime
+
+from feedback_manager import FeedbackManager
+from feedback_manager.integrations.xai import XAIProvenanceAdapter
+
+runtime = XAIRuntime(application_id="support-bot", tenant_id="acme-corp", graph_id="qa-graph")
+manager = FeedbackManager(provenance_adapter=XAIProvenanceAdapter(runtime))
 ```
+
+See [Provenance model](../architecture/PROVENANCE_MODEL.md) for how
+`XAIProvenanceAdapter` resolves provenance live (during a run) or
+after the fact (via `ProvenanceStore`, by `run_id`).
 

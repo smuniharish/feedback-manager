@@ -3,12 +3,11 @@
 The provenance boundary is implemented by:
 
 - `FeedbackProvenanceReference` in `core/provenance.py`
-- `FeedbackProvenanceAdapter` protocol in `contracts/provenance.py`
 - `XAIProvenanceAdapter` in `integrations/xai/adapter.py`
 
 ## Core idea
 
-`feedback-manager` does not capture provenance itself. It consumes provenance from `langgraph-xai` and translates it into a small framework-independent reference object.
+`feedback-manager` does not capture provenance itself. It consumes provenance from `langgraph-xai` and translates it into a small framework-independent reference object. `langgraph-xai` is the mandatory, default, and only supported provenance source -- `FeedbackManager` takes an optional `provenance_adapter: XAIProvenanceAdapter | None` and depends on it directly, rather than through a generic pluggable contract, since there is exactly one provenance provider by design.
 
 ## Bundled adapter: `XAIProvenanceAdapter`
 
@@ -77,7 +76,6 @@ then the bundled adapter returns `None`.
 
 `XAIProvenanceAdapter._map_execution()` currently populates:
 
-- `provider="langgraph-xai"`
 - `execution_id`
 - `tool_execution_id` when `tool_call_id` matches
 - `human_interaction_id` from the latest human interaction, when present

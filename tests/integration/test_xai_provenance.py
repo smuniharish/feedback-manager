@@ -52,7 +52,6 @@ async def test_provenance_is_attached_during_active_run() -> None:
     assert len(captured) == 1
     feedback = captured[0]
     assert feedback.provenance is not None
-    assert feedback.provenance.provider == "langgraph-xai"
     assert feedback.provenance.execution_id
 
 

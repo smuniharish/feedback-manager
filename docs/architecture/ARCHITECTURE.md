@@ -62,8 +62,10 @@ The core layer never imports LangChain, LangGraph, or `langgraph-xai`.
 
 `src/feedback_manager/contracts/` defines extension points:
 
-- ABCs for stateful components with behavioral invariants, such as `FeedbackStore`, `FeedbackHandler`, and `FeedbackRouter`
-- Protocols for structural contracts such as `FeedbackSubscriber`, `FeedbackSerializer`, `FeedbackCorrelator`, `FeedbackProvenanceAdapter`, and policy hooks
+- ABCs for stateful components with behavioral invariants, such as `FeedbackStore`, `FeedbackHandler`, `FeedbackRouter`, and the policy hooks
+- Protocols for structural contracts such as `FeedbackSubscriber`, `FeedbackSerializer`, and `FeedbackCorrelator`
+
+Provenance is deliberately **not** one of these generic contracts: `langgraph-xai` is a mandatory runtime dependency and the sole supported provenance source, so `FeedbackManager` depends directly on `XAIProvenanceAdapter` (see [PROVENANCE_MODEL.md](PROVENANCE_MODEL.md)).
 
 This keeps the manager stable while making infrastructure replaceable.
 

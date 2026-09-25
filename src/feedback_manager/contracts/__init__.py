@@ -11,7 +11,6 @@ from feedback_manager.contracts.handler import (
     FeedbackHandlerResult,
 )
 from feedback_manager.contracts.policy import FeedbackLifecyclePolicy, FeedbackPolicy
-from feedback_manager.contracts.provenance import FeedbackProvenanceAdapter
 from feedback_manager.contracts.router import FeedbackRouter
 from feedback_manager.contracts.serializer import DefaultFeedbackSerializer, FeedbackSerializer
 from feedback_manager.contracts.store import FeedbackQuery, FeedbackStore
@@ -25,7 +24,6 @@ __all__ = [
     "FeedbackHandlerResult",
     "FeedbackLifecyclePolicy",
     "FeedbackPolicy",
-    "FeedbackProvenanceAdapter",
     "FeedbackQuery",
     "FeedbackRouter",
     "FeedbackSerializer",

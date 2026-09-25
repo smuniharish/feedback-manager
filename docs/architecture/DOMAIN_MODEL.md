@@ -147,11 +147,10 @@ Fields:
 
 Defined in `core/provenance.py`.
 
-This is the small framework-independent shape used by the rest of the package:
+This is the small framework-independent shape used by the rest of the package. `langgraph-xai` is the mandatory, sole provenance source, so there is no `provider` field to disambiguate between multiple providers:
 
 | Field | Type |
 | --- | --- |
-| `provider` | `str` |
 | `execution_id` | `str \| None` |
 | `decision_id` | `str \| None` |
 | `evidence_ids` | `tuple[str, ...]` |
@@ -160,7 +159,7 @@ This is the small framework-independent shape used by the rest of the package:
 | `summary` | `str \| None` |
 | `metadata` | `dict[str, Any]` |
 
-The current `XAIProvenanceAdapter` populates execution/tool/human summary fields and metadata; `decision_id` and `evidence_ids` are part of the stable core shape for adapter implementations even though the bundled adapter does not currently populate them.
+`XAIProvenanceAdapter` populates execution/tool/human summary fields and metadata; `decision_id` and `evidence_ids` are part of the stable core shape but are not currently populated by the bundled adapter.
 
 ## `FeedbackStatus`
 

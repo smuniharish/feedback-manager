@@ -18,8 +18,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and an explicit `FeedbackStatus` lifecycle state machine.
 - Abstract extension contracts (`contracts/`): `FeedbackStore`,
   `FeedbackHandler`, `FeedbackRouter`, `FeedbackSubscriber`,
-  `FeedbackCorrelator`, `FeedbackProvenanceAdapter`, `FeedbackPolicy`,
-  `FeedbackLifecyclePolicy`, `FeedbackSerializer`.
+  `FeedbackCorrelator`, `FeedbackPolicy`, `FeedbackLifecyclePolicy`,
+  `FeedbackSerializer`. Provenance is not a generic extension point:
+  `langgraph-xai` is the mandatory, sole provenance source, and
+  `FeedbackManager` depends directly on `XAIProvenanceAdapter`.
 - `FeedbackManager` application service: `submit`, `acknowledge`,
   `mark_handled`, `resolve`, `reject`, `cancel`, `get`, `query`, `list`,
   `subscribe`, `stream` — a small, stable, dependency-injected public API.

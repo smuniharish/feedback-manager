@@ -1,14 +1,14 @@
 """The *only* module in feedback_manager that imports ``langgraph_xai`` types.
 
-``XAIProvenanceAdapter`` implements
-:class:`feedback_manager.contracts.provenance.FeedbackProvenanceAdapter` by
-reading from a ``langgraph_xai.XAIRuntime`` -- either the run that is
-currently active on the calling task (``runtime.current_run``, when
-feedback is submitted synchronously during graph execution) or, for
-feedback submitted after the fact, by querying the runtime's registered
-``ProvenanceStore`` for the ``Execution`` matching the feedback's
-``run_id``. It never re-implements provenance capture itself; it only
-translates what ``langgraph-xai`` already captured into
+``XAIProvenanceAdapter`` is the provenance adapter used by
+:class:`~feedback_manager.api.manager.FeedbackManager`. It reads from a
+``langgraph_xai.XAIRuntime`` -- either the run that is currently active on
+the calling task (``runtime.current_run``, when feedback is submitted
+synchronously during graph execution) or, for feedback submitted after the
+fact, by querying the runtime's registered ``ProvenanceStore`` for the
+``Execution`` matching the feedback's ``run_id``. It never re-implements
+provenance capture itself; it only translates what ``langgraph-xai``
+already captured into
 :class:`~feedback_manager.core.provenance.FeedbackProvenanceReference`.
 """
 
@@ -18,8 +18,6 @@ from langgraph_xai import Execution, ProvenanceStore, XAIRuntime
 
 from feedback_manager.core.context import CorrelationContext
 from feedback_manager.core.provenance import FeedbackProvenanceReference
-
-PROVIDER_NAME = "langgraph-xai"
 
 
 class XAIProvenanceAdapter:
@@ -80,7 +78,6 @@ class XAIProvenanceAdapter:
             summary += f", matched_node_status={matched_node.status.value}"
 
         return FeedbackProvenanceReference(
-            provider=PROVIDER_NAME,
             execution_id=str(execution.id),
             tool_execution_id=str(matched_tool.id) if matched_tool is not None else None,
             human_interaction_id=str(latest_interaction.id)
