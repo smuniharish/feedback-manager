@@ -8,7 +8,10 @@ It gives you:
 - lifecycle management (`RECEIVED -> ACKNOWLEDGED -> HANDLED -> RESOLVED`)
 - correlation to runs, threads, checkpoints, nodes, tool calls, and generations
 - pluggable persistence, routing, handlers, policies, and observability
-- thin integrations for LangChain, LangGraph, and `langgraph-xai`
+- framework helpers for LangChain callbacks and LangGraph human-in-the-loop
+  flows
+- provenance correlation backed exclusively by the mandatory
+  `langgraph-xai` runtime
 
 It does **not** give you:
 
@@ -37,4 +40,3 @@ Agent applications often accumulate feedback in ad hoc ways:
 - [Quickstart](getting-started/quickstart.md)
 - [Core concepts](concepts/sources.md)
 - [Architecture](architecture/ARCHITECTURE.md)
-

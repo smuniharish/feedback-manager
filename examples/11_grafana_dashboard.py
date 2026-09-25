@@ -38,7 +38,7 @@ from feedback_manager import (
     FeedbackTarget,
     FeedbackTargetType,
 )
-from feedback_manager.observability.hooks import ObservabilityEvent
+from feedback_manager.observability import ObservabilityEvent
 
 GRAFANA_URL = os.environ.get("FEEDBACK_MANAGER_GRAFANA_URL", "http://192.168.65.189:3000")
 GRAFANA_AUTH = (

@@ -12,6 +12,5 @@ Implement thin adapters that reuse those mechanisms instead of replacing them.
 
 - `FeedbackCallbackHandler` uses LangChain callbacks directly
 - `HumanInTheLoopBridge` wraps LangGraph `interrupt()` and `Command(resume=...)`
-- `XAIProvenanceAdapter` reads from `XAIRuntime` and `ProvenanceStore`
+- provenance uses the application's `XAIRuntime`
 - core package complexity stays lower and duplication is avoided
-

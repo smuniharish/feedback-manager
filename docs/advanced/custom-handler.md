@@ -4,7 +4,7 @@ Implement `FeedbackHandler` when feedback should trigger application-specific si
 
 ```python
 from feedback_manager.contracts import FeedbackContext, FeedbackHandler, FeedbackHandlerResult
-from feedback_manager.core import FeedbackEvent
+from feedback_manager import FeedbackEvent
 
 
 class HumanReviewHandler(FeedbackHandler):
@@ -16,4 +16,3 @@ class HumanReviewHandler(FeedbackHandler):
 ```
 
 Handler failures are isolated by default because `FeedbackManager` runs them through `FailurePolicy` as stage `HANDLER`.
-

@@ -1,23 +1,25 @@
 # Testing
 
-Run the full suite:
+The package validates three kinds of behavior:
+
+- domain, lifecycle, routing, policy, and public-API behavior
+- concurrency, idempotency, subscriber, and stream-isolation guarantees
+- real LangChain, LangGraph, and `langgraph-xai` boundaries
+
+The framework tests use actual dependency APIs rather than replacement
+runtimes.
+
+For contributors, run the full suite with:
 
 ```powershell
-uv run pytest tests -q
+uv run pytest -q
 ```
 
 Run with coverage:
 
 ```powershell
-.venv\Scripts\python.exe -m coverage run -m pytest tests -q
-.venv\Scripts\python.exe -m coverage report
+uv run coverage run -m pytest -q
+uv run coverage report
 ```
 
-Layout:
-
-- `tests/unit/`
-- `tests/concurrency/`
-- `tests/integration/`
-
 See [Testing strategy](../architecture/TESTING_STRATEGY.md) for details.
-

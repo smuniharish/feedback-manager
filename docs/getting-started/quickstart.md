@@ -1,18 +1,18 @@
 # Quickstart
 
-This example uses the real public API exposed by `feedback_manager.__init__`.
+This example uses only the stable root-package API.
 
 ```python
 import asyncio
 
 from feedback_manager import (
     FeedbackCategory,
+    ExecutionContext,
     FeedbackManager,
     FeedbackSource,
     FeedbackTarget,
     FeedbackTargetType,
 )
-from feedback_manager.core.context import ExecutionContext
 
 
 async def main() -> None:
@@ -59,4 +59,3 @@ resolved
 5. `resolve()` completed the lifecycle and stored resolution metadata
 
 For the underlying domain rules, see [Lifecycle](../concepts/lifecycle.md) and the deeper [architecture document](../architecture/LIFECYCLE.md).
-

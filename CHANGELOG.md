@@ -25,6 +25,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `FeedbackManager` application service: `submit`, `acknowledge`,
   `mark_handled`, `resolve`, `reject`, `cancel`, `get`, `query`, `list`,
   `subscribe`, `stream` — a small, stable, dependency-injected public API.
+- Public `validate_transition()` helper for custom store implementations to
+  preserve the package lifecycle invariant without importing internal
+  modules.
 - Reference implementations: `InMemoryFeedbackStore`, default router and
   rule-based routing, default correlator, failure-isolation policies
   (best-effort by default), observability hooks.

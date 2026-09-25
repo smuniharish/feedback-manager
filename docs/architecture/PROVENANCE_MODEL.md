@@ -1,43 +1,33 @@
 # Provenance Model
 
-The provenance boundary is implemented by:
+The public provenance boundary consists of:
 
-- `FeedbackProvenanceReference` in `core/provenance.py`
-- `XAIProvenanceAdapter` in `integrations/xai/adapter.py`
+- `FeedbackProvenanceReference` on feedback records
+- the `xai_runtime` configuration accepted by `FeedbackManager`
 
 ## Core idea
 
-`feedback-manager` does not capture provenance itself. It consumes provenance from `langgraph-xai` and translates it into a small framework-independent reference object. `langgraph-xai` is the mandatory, default, and only supported provenance source -- `FeedbackManager` takes an `xai_runtime: XAIRuntime | None` and builds `XAIProvenanceAdapter` for you automatically (or, for advanced call sites, an already-constructed `provenance_adapter: XAIProvenanceAdapter | None` directly), rather than through a generic pluggable contract, since there is exactly one provenance provider by design.
-
-## Bundled adapter: `XAIProvenanceAdapter`
-
-`XAIProvenanceAdapter` is the only place in this package that imports `langgraph_xai` types.
-
-It imports:
-
-- `Execution`
-- `ProvenanceStore`
-- `XAIRuntime`
+`feedback-manager` does not capture provenance itself. It consumes provenance
+from `langgraph-xai` and represents it as a small framework-independent
+reference object. `langgraph-xai` is the mandatory and only supported
+provenance source. Applications pass an `XAIRuntime` to `FeedbackManager`;
+the translation mechanism is not a public extension point.
 
 ## Resolution strategy
 
-`resolve(correlation)` uses two paths.
+Provenance can be resolved through two paths.
 
 ### 1. Live, in-run resolution
 
-First it checks:
-
-- `self._runtime.current_run`
-
-If a current run exists on the calling task, the adapter uses that run's `execution` directly.
+If the supplied runtime exposes a current run on the calling task, feedback
+submitted during that run can be correlated immediately.
 
 This is the path used when feedback is submitted **from inside a running graph node during execution**.
 
 ### 2. Post-run fallback
 
-If there is no active current run, the adapter looks for:
-
-- `correlation.execution.run_id`
+If there is no active run, the feedback execution context can supply a
+`run_id` for post-run lookup through `langgraph-xai`.
 
 If a `run_id` exists, it then asks the runtime registry for a provenance store:
 
@@ -70,11 +60,11 @@ If feedback is created:
 - without an execution `run_id`, and
 - without a live `current_run`
 
-then the bundled adapter returns `None`.
+then provenance remains `None`.
 
 ## Mapped fields
 
-`XAIProvenanceAdapter._map_execution()` currently populates:
+The resulting `FeedbackProvenanceReference` can contain:
 
 - `execution_id`
 - `tool_execution_id` when `tool_call_id` matches
@@ -89,5 +79,6 @@ It also attempts targeted matching using:
 
 ## Important boundary rule
 
-The adapter translates provenance; it does not own provenance persistence, run storage, or capture instrumentation. Those remain the job of `langgraph-xai`.
-
+FeedbackManager translates provenance references; it does not own provenance
+persistence, run storage, or capture instrumentation. Those remain the job
+of `langgraph-xai`.

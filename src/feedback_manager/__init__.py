@@ -27,6 +27,7 @@ from feedback_manager.api.subscription import Subscription
 from feedback_manager.core.categories import FeedbackCategory
 from feedback_manager.core.context import CorrelationContext, ExecutionContext
 from feedback_manager.core.events import FeedbackEvent
+from feedback_manager.core.lifecycle import validate_transition
 from feedback_manager.core.provenance import FeedbackProvenanceReference
 from feedback_manager.core.sources import FeedbackSource
 from feedback_manager.core.status import FeedbackStatus
@@ -70,4 +71,5 @@ __all__ = [
     "FeedbackValidationError",
     "Subscription",
     "__version__",
+    "validate_transition",
 ]

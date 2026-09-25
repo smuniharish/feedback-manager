@@ -7,7 +7,8 @@ from uuid import uuid4
 
 import pytest
 
-from feedback_manager.core.lifecycle import is_legal_transition, validate_transition
+from feedback_manager import validate_transition
+from feedback_manager.core.lifecycle import is_legal_transition
 from feedback_manager.core.status import TERMINAL_STATUSES, FeedbackStatus
 from feedback_manager.errors import FeedbackLifecycleError
 

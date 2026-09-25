@@ -28,7 +28,7 @@ The implementation does not depend on `TaskGroup`, but the concurrency tests use
 
 ## Tested concurrency behavior
 
-`tests/concurrency/test_concurrency.py` verifies:
+The concurrency suite verifies:
 
 1. **concurrent submissions all persist**  
    50 simultaneous `submit()` calls produce 50 stored events.
@@ -47,7 +47,9 @@ The implementation does not depend on `TaskGroup`, but the concurrency tests use
 
 ## Multi-instance independence
 
-There is no module-level singleton manager, router, or store. Each `FeedbackManager` instance owns its own dependencies and internal subscriber/stream state. `tests/unit/test_manager.py` explicitly verifies that two managers remain isolated.
+There is no module-level singleton manager, router, or store. Each
+`FeedbackManager` instance owns its own dependencies and subscriber/stream
+state, so multiple managers remain isolated.
 
 ## Current execution model
 
@@ -58,4 +60,3 @@ Important limits:
 - routing is pure selection, not concurrent execution
 
 This favors deterministic, easy-to-reason-about behavior.
-

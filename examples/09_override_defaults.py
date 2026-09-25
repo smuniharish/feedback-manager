@@ -31,27 +31,29 @@ from langgraph.graph import END, START, StateGraph
 from langgraph_xai import XAIRuntime
 
 from feedback_manager import (
+    CorrelationContext,
+    ExecutionContext,
     FeedbackCategory,
     FeedbackEvent,
     FeedbackManager,
     FeedbackSource,
+    FeedbackStatus,
     FeedbackTarget,
     FeedbackTargetType,
 )
-from feedback_manager.contracts.correlator import FeedbackCorrelator
-from feedback_manager.contracts.handler import (
+from feedback_manager.contracts import (
     FeedbackContext,
+    FeedbackCorrelator,
     FeedbackHandler,
     FeedbackHandlerResult,
+    FeedbackLifecyclePolicy,
+    FeedbackPolicy,
+    FeedbackRouter,
 )
-from feedback_manager.contracts.policy import FeedbackLifecyclePolicy, FeedbackPolicy
-from feedback_manager.contracts.router import FeedbackRouter
-from feedback_manager.core.context import CorrelationContext, ExecutionContext
-from feedback_manager.core.status import FeedbackStatus
 from feedback_manager.errors import FeedbackLifecycleError
-from feedback_manager.observability.hooks import ObservabilityEvent, ObservabilitySink
-from feedback_manager.policies.failure import FailureMode, FailurePolicy, FeedbackStage
-from feedback_manager.storage.memory import InMemoryFeedbackStore
+from feedback_manager.observability import ObservabilityEvent, ObservabilitySink
+from feedback_manager.policies import FailureMode, FailurePolicy, FeedbackStage
+from feedback_manager.storage import InMemoryFeedbackStore
 
 
 class AuditedStore(InMemoryFeedbackStore):

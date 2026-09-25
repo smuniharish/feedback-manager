@@ -1,17 +1,18 @@
 # Testing Strategy
 
-The package ships a real test suite under `tests/` and exercises actual dependencies rather than mocking the frameworks away.
+The package exercises actual dependencies rather than mocking framework
+boundaries away.
 
 ## Current baseline
 
 Verified before writing this document:
 
-- `pytest`: **100 tests passed**
+- `pytest`: **101 tests passed**
 - `coverage report`: **97% total coverage**
 
-## Test layout
+## Test layers
 
-### `tests/unit/`
+### Domain and application-service tests
 
 Focused tests for:
 
@@ -25,7 +26,7 @@ Focused tests for:
 - bundled handler and serializer
 - `FeedbackManager` application service
 
-### `tests/concurrency/`
+### Concurrency tests
 
 Concurrency-specific tests for:
 
@@ -35,7 +36,7 @@ Concurrency-specific tests for:
 - subscriber delivery under concurrent producers
 - stream cancellation cleanup
 
-### `tests/integration/`
+### Framework-boundary tests
 
 Real dependency integration tests for:
 
@@ -56,13 +57,12 @@ The tests validate the real integration boundaries the package documents.
 The repository is configured to run tests with:
 
 ```powershell
-uv run pytest tests -q
+uv run pytest -q
 ```
 
 Coverage:
 
 ```powershell
-.venv\Scripts\python.exe -m coverage run -m pytest tests -q
-.venv\Scripts\python.exe -m coverage report
+uv run coverage run -m pytest -q
+uv run coverage report
 ```
-

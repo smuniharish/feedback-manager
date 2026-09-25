@@ -6,7 +6,7 @@ Implement `FeedbackRouter` when predicate-based rules are not enough.
 from collections.abc import Sequence
 
 from feedback_manager.contracts import FeedbackHandler, FeedbackRouter
-from feedback_manager.core import FeedbackEvent
+from feedback_manager import FeedbackEvent
 
 
 class SeverityRouter(FeedbackRouter):
@@ -22,4 +22,3 @@ class SeverityRouter(FeedbackRouter):
 ```
 
 The router should be side-effect free; it selects handlers but does not call them.
-
