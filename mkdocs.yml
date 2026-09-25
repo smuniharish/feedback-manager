@@ -33,6 +33,7 @@ markdown_extensions:
       dedent_subsections: true
 nav:
   - Home: index.md
+  - Agent Skills: agent-skills.md
   - Getting started:
       - Installation: getting-started/installation.md
       - Quickstart: getting-started/quickstart.md

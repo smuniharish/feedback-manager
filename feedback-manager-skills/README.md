@@ -30,6 +30,9 @@ repository's authoritative
 [examples](https://github.com/smuniharish/feedback-manager/tree/master/examples)
 instead of maintaining a second copy of them.
 
+For current skills.sh, Claude Code, Codex, Cursor, GitHub Copilot, and
+manual installation instructions, see
+[Agent Skills - feedback-manager](https://feedback-manager.readthedocs.io/en/latest/agent-skills/).
 This repository intentionally provides no Claude, Codex, or Copilot adapter
 because none is required to consume the canonical `SKILL.md`.
 

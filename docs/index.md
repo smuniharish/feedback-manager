@@ -40,3 +40,4 @@ Agent applications often accumulate feedback in ad hoc ways:
 - [Quickstart](getting-started/quickstart.md)
 - [Core concepts](concepts/sources.md)
 - [Architecture](architecture/ARCHITECTURE.md)
+- [Agent Skills](agent-skills.md)
