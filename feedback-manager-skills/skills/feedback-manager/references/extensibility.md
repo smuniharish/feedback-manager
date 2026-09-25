@@ -3,7 +3,9 @@
 Source of truth: [`docs/architecture/EXTENSIBILITY_MODEL.md`](../../../../docs/architecture/EXTENSIBILITY_MODEL.md),
 [`docs/advanced/`](../../../../docs/advanced),
 [`src/feedback_manager/contracts/`](../../../../src/feedback_manager/contracts),
-and [`examples/09_override_defaults.py`](../../../../examples/09_override_defaults.py).
+and [`examples/09_override_defaults.py`](../../../../examples/09_override_defaults.py),
+also published at
+[feedback-manager.readthedocs.io](https://feedback-manager.readthedocs.io).
 Every extension point is an injected dependency on `FeedbackManager`'s
 constructor; never subclass or monkeypatch `FeedbackManager` to add one.
 

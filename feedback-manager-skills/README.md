@@ -9,7 +9,7 @@ It is not a Python package and does not add runtime behavior.
 
 | Component | Location | Purpose |
 | --- | --- | --- |
-| feedback-manager runtime | [`src/feedback_manager/`](../src/feedback_manager) | The published Python package and its supported public API. |
+| feedback-manager runtime | [`src/feedback_manager/`](https://github.com/smuniharish/feedback-manager/tree/master/src/feedback_manager) | The published Python package and its supported public API. |
 | feedback-manager Agent Skill | [`skills/feedback-manager/`](skills/feedback-manager/) | Canonical agent-oriented instructions and concise reference material. |
 | Skill validation | [`validation/`](validation/) | Validation procedure and realistic activation/task matrix. |
 
@@ -25,8 +25,10 @@ Compatible agents should load
 [`skills/feedback-manager/SKILL.md`](skills/feedback-manager/SKILL.md) when
 working on feedback capture, correlation, lifecycle, routing, persistence, or
 provenance for LangChain/LangGraph applications. The skill links to the
-repository's authoritative [documentation](../docs/index.md) and
-[examples](../examples) instead of maintaining a second copy of them.
+repository's authoritative
+[documentation](https://feedback-manager.readthedocs.io) and
+[examples](https://github.com/smuniharish/feedback-manager/tree/master/examples)
+instead of maintaining a second copy of them.
 
 This repository intentionally provides no Claude, Codex, or Copilot adapter
 because none is required to consume the canonical `SKILL.md`.

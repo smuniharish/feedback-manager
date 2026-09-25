@@ -5,8 +5,11 @@ particular `ARCHITECTURE.md`, `DOMAIN_MODEL.md`, `LIFECYCLE.md`,
 `CORRELATION_MODEL.md`, `PROVENANCE_MODEL.md`, `ROUTING_MODEL.md`,
 `FAILURE_MODEL.md`, `CONCURRENCY_MODEL.md`, and
 `RESPONSIBILITY_MATRIX.md`) and
-[`src/feedback_manager/`](../../../../src/feedback_manager). Read the linked
-source file, not just this summary, before asserting internal behavior.
+[`src/feedback_manager/`](../../../../src/feedback_manager). The same
+material is published at
+[feedback-manager.readthedocs.io](https://feedback-manager.readthedocs.io)
+for consumers without a repository checkout. Read the linked source file,
+not just this summary, before asserting internal behavior.
 
 ## What the package owns vs. what it does not
 

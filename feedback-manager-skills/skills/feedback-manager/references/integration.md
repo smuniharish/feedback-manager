@@ -3,8 +3,11 @@
 Source of truth: [`docs/getting-started/`](../../../../docs/getting-started),
 [`docs/frameworks/`](../../../../docs/frameworks),
 [`docs/examples/`](../../../../docs/examples), and
-[`examples/`](../../../../examples). Prefer the actual example script closest to
-the workload over re-deriving code from memory.
+[`examples/`](../../../../examples), also published at
+[feedback-manager.readthedocs.io](https://feedback-manager.readthedocs.io)
+and [github.com/smuniharish/feedback-manager](https://github.com/smuniharish/feedback-manager).
+Prefer the actual example script closest to the workload over re-deriving
+code from memory.
 
 ## Minimal quickstart (root package only)
 

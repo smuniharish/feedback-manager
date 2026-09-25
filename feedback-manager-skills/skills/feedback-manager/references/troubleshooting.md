@@ -3,9 +3,10 @@
 Source of truth: [`src/feedback_manager/errors/exceptions.py`](../../../../src/feedback_manager/errors/exceptions.py),
 [`docs/architecture/FAILURE_MODEL.md`](../../../../docs/architecture/FAILURE_MODEL.md),
 [`docs/reliability/`](../../../../docs/reliability), and
-[`docs/faq/index.md`](../../../../docs/faq/index.md). Reproduce first with the
-exact source/category/target/payload/execution_context in use; do not guess
-at a fix from the exception name alone.
+[`docs/faq/index.md`](../../../../docs/faq/index.md), also published at
+[feedback-manager.readthedocs.io](https://feedback-manager.readthedocs.io).
+Reproduce first with the exact source/category/target/payload/execution_context
+in use; do not guess at a fix from the exception name alone.
 
 ## Exception hierarchy
 
