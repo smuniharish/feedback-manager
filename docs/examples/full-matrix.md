@@ -1,7 +1,5 @@
 # Example: every (source, category, target type) combination, for real
 
-Source file: `examples/10_full_matrix_feedback.py`
-
 The [Streamlit example](streamlit-feedback-ui.md) proves a human can submit
 feedback of *every* `FeedbackSource` through the real UI. That is one
 representative event per source -- it does not prove the pipeline actually
@@ -26,6 +24,12 @@ prove every value of every axis actually round-tripped.
     The [Grafana dashboard](grafana-observability.md) uses that flag to keep
     its "real / organic feedback" panels honest -- see that page for why
     this matters and how the two are kept separate.
+
+Full source, embedded directly from `examples/10_full_matrix_feedback.py`:
+
+```python title="examples/10_full_matrix_feedback.py"
+--8<-- "examples/10_full_matrix_feedback.py"
+```
 
 ## Real run, real database
 

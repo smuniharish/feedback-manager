@@ -1,18 +1,22 @@
 # Example: evaluator feedback
 
-Source file: `examples/05_evaluator_feedback.py`
+An evaluator (LLM-as-judge, rule-based checker, or human reviewer acting as
+an evaluator) scores a generation's quality. `feedback-manager` records
+this feedback -- it does not implement the evaluator itself, and it does
+not treat the score as ground truth; it only records what was said, by
+what, and about which target.
 
-This example records evaluator output about a generation without pretending the evaluator itself belongs to `feedback-manager`.
+Full source, embedded directly from `examples/05_evaluator_feedback.py`:
 
-Key pattern:
+```python title="examples/05_evaluator_feedback.py"
+--8<-- "examples/05_evaluator_feedback.py"
+```
 
-```python
-feedback = await manager.submit(
-    source=FeedbackSource.EVALUATOR,
-    category=FeedbackCategory.QUALITY,
-    target=FeedbackTarget(type=FeedbackTargetType.GENERATION, id=generation_id),
-    payload=result,
-    metadata={"evaluator_name": "factuality_judge_v1"},
-)
+## Real run
+
+```console
+$ uv run python examples/05_evaluator_feedback.py
+Evaluator feedback recorded: id=1887f7ca-fa00-43d1-a48a-80bb00193845 payload={'score': 0.42, 'critique': 'Answer is factually incorrect.', 'policy_violation': False}
+Evaluator feedback resolved: status=resolved
 ```
 

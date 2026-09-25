@@ -1,17 +1,22 @@
 # Example: tool failure
 
-Source file: `examples/03_tool_failure.py`
+A real LangChain `@tool` raises `TimeoutError`; `FeedbackCallbackHandler`
+translates that into feedback automatically, without the application
+needing to catch the exception itself.
 
-This example shows a real LangChain `@tool` raising `TimeoutError` and being captured automatically by `FeedbackCallbackHandler`.
+Full source, embedded directly from `examples/03_tool_failure.py`:
 
-Key pattern:
+```python title="examples/03_tool_failure.py"
+--8<-- "examples/03_tool_failure.py"
+```
 
-```python
-handler = FeedbackCallbackHandler(manager)
+## Real run
 
-try:
-    await fetch_weather.ainvoke({"city": "Canberra"}, config={"callbacks": [handler]})
-except TimeoutError:
-    ...
+```console
+$ uv run python examples/03_tool_failure.py
+Feedback captured: source=tool category=timeout payload={'error': "weather service timed out looking up 'Canberra'", 'error_type': 'TimeoutError'}
+Tool call failed -- application handles the exception as usual;
+FeedbackManager has already recorded it independently.
+Total feedback events recorded: 1
 ```
 
