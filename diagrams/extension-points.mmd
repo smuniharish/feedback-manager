@@ -1,0 +1,59 @@
+classDiagram
+    direction LR
+    class FeedbackManager {
+        +submit()
+        +acknowledge() mark_handled() resolve()
+        +reject() cancel() expire() expire_overdue()
+        +get() query()
+        +subscribe() stream()
+    }
+    class FeedbackStore {
+        <<abstract>>
+        +create() get() transition() query()
+    }
+    class FeedbackRouter {
+        <<abstract>>
+        +route()
+    }
+    class FeedbackHandler {
+        <<abstract>>
+        +handle()
+    }
+    class FeedbackLifecyclePolicy {
+        <<abstract>>
+        +authorize_transition()
+    }
+    class FeedbackRedactionPolicy {
+        <<abstract>>
+        +redact()
+    }
+    class FeedbackCorrelator {
+        <<protocol>>
+        +correlate()
+    }
+    class FeedbackSubscriber {
+        <<protocol>>
+        +#95;#95;call#95;#95;()
+    }
+    class ObservabilitySink {
+        <<protocol>>
+        +emit()
+    }
+    class FailurePolicy {
+        +modes
+        +run_stage()
+    }
+    FeedbackManager --> FeedbackStore
+    FeedbackManager --> FeedbackRouter
+    FeedbackRouter --> FeedbackHandler
+    FeedbackManager --> FeedbackCorrelator
+    FeedbackManager --> FeedbackLifecyclePolicy
+    FeedbackManager --> FeedbackRedactionPolicy
+    FeedbackManager --> FeedbackSubscriber
+    FeedbackManager --> ObservabilitySink
+    FeedbackManager --> FailurePolicy
+    FeedbackStore <|-- InMemoryFeedbackStore
+    FeedbackRouter <|-- DefaultFeedbackRouter
+    FeedbackHandler <|-- AuditFeedbackHandler
+    FeedbackCorrelator <|.. DefaultFeedbackCorrelator
+    ObservabilitySink <|.. LoggingObservabilitySink

@@ -1,0 +1,26 @@
+sequenceDiagram
+    autonumber
+    participant App as Application
+    participant M as FeedbackManager
+    participant P as Redaction · Correlator · Provenance
+    participant S as FeedbackStore
+    participant D as Subscribers & streams
+    participant R as Router & handlers
+    participant O as Observability sink
+
+    App->>M: submit(source, category, target, payload, ...)
+    Note over M: validate input
+    M->>P: redact, correlate, resolve provenance
+    Note over P: correlation and provenance failures<br/>follow the FailurePolicy
+    M->>S: create(event as RECEIVED)
+    alt idempotency key already stored
+        S-->>M: original event
+        M-->>App: original event, not processed again
+    else new feedback
+        S-->>M: stored event
+        M-)O: feedback.received
+        M->>D: publish
+        M->>R: route, then run each handler
+        M-)O: feedback.routed
+        M-->>App: stored event
+    end

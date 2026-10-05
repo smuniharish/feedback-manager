@@ -1,103 +1,237 @@
+[build-system]
+requires = ["uv_build>=0.12.23,<0.13"]
+build-backend = "uv_build"
+
 [project]
 name = "feedback-manager"
-version = "0.1.0"
-description = "Production-grade feedback infrastructure for LangChain/LangGraph applications: capture, correlate, persist, route, and resolve feedback as a first-class domain concern."
+version = "0.1.1"
+description = "Feedback infrastructure for LangChain and LangGraph applications: capture, correlate, persist, route, and resolve feedback as a first-class domain concern."
 readme = "README.md"
+requires-python = ">=3.12"
 license = "Apache-2.0"
-authors = [
-    { name = "S MUNI HARISH", email = "samamuniharish@gmail.com" }
+license-files = ["LICENSE"]
+keywords = [
+    "langgraph",
+    "langchain",
+    "agents",
+    "feedback",
+    "human-in-the-loop",
+    "hitl",
+    "provenance",
+    "evaluation",
 ]
-requires-python = ">=3.12,<3.15"
-keywords = ["langchain", "langgraph", "feedback", "hitl", "human-in-the-loop", "provenance"]
 classifiers = [
     "Development Status :: 3 - Alpha",
+    "Framework :: AsyncIO",
     "Intended Audience :: Developers",
+    "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
     "Programming Language :: Python :: 3.14",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Software Development :: Libraries :: Python Modules",
     "Typing :: Typed",
 ]
 dependencies = [
-    "langchain-core>=1.6,<2",
-    "langgraph>=1.2.11,<1.3",
-    "langgraph-xai>=0.1.0,<0.2",
-    "pydantic>=2.12,<3",
-    "structlog>=25.1,<27",
+    "langgraph>=1.2.12,<2",
+    "langgraph-xai>=1.0.0,<2",
+    "pydantic>=2.13.5,<3",
+    "structlog>=26.1.0,<27",
 ]
+
+[[project.authors]]
+name = "S MUNI HARISH"
+email = "samamuniharish@gmail.com"
 
 [project.urls]
-Homepage = "https://github.com/samamuniharish/feedback-manager"
-Documentation = "https://feedback-manager.readthedocs.io"
-Repository = "https://github.com/samamuniharish/feedback-manager"
-Issues = "https://github.com/samamuniharish/feedback-manager/issues"
-Changelog = "https://github.com/samamuniharish/feedback-manager/blob/main/CHANGELOG.md"
+Homepage = "https://github.com/smuniharish/feedback-manager"
+Documentation = "https://feedback-manager.readthedocs.io/"
+Changelog = "https://github.com/smuniharish/feedback-manager/blob/master/CHANGELOG.md"
+Issues = "https://github.com/smuniharish/feedback-manager/issues"
+Repository = "https://github.com/smuniharish/feedback-manager"
 
 [dependency-groups]
-dev = [
-    "ruff>=0.14",
-    "mypy>=1.14",
-    "pytest>=8.3",
-    "pytest-asyncio>=0.25",
-    "coverage[toml]>=7.6",
-    "langchain>=1.0,<2",
+test = [
+    "hypothesis>=6.168.3",
+    "pytest>=9.1.1",
+    "pytest-asyncio>=1.4.0",
+    "pytest-cov>=7.1.0",
+    "skills-ref>=0.1.1,<1",
 ]
+lint = ["ruff>=0.16.10"]
+types = ["pyrefly>=1.3.2"]
 docs = [
-    "mkdocs>=1.6",
-    "mkdocs-material>=9.5",
-    "mkdocstrings[python]>=0.27",
+    "griffe-pydantic>=1.3.1,<2",
+    "mkdocs>=1.6.1,<2",
+    "mkdocs-glightbox>=0.5.2,<1",
+    "mkdocs-material>=9.7.7,<10",
+    "mkdocstrings[python]>=1.0.6,<2",
+    "mkdocstrings-python>=2.0.9,<3",
 ]
 examples = [
-    "deepagents>=0.7.19",
-    "langchain>=1.4.2",
-    "langchain-mcp-adapters>=0.3.2",
-    "langchain-openai>=1.6.6",
-    "openai>=3.19.2",
-    "psycopg[binary]>=3.3.6",
-    "streamlit>=1.64.0",
+    "deepagents>=0.7.21,<1",
+    "httpx>=0.28.1,<1",
+    "langchain>=1.4.3,<2",
+    "langchain-mcp-adapters>=0.3.2,<1",
+    "langchain-openai>=1.6.7,<2",
+    "psycopg[binary,pool]>=3.3.6,<4",
+    "psycopg-pool>=3.3.3,<4",
+    "streamlit>=1.65.0,<2",
+]
+dev = [
+    { include-group = "test" },
+    { include-group = "lint" },
+    { include-group = "types" },
 ]
 
-[build-system]
-requires = ["uv_build>=0.12.15,<0.13.0"]
-build-backend = "uv_build"
+[tool.uv]
+default-groups = ["dev"]
+
+[tool.pytest.ini_options]
+addopts = "-ra --strict-config --strict-markers"
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+testpaths = ["tests"]
+filterwarnings = ["error"]
+markers = [
+    "integration: tests that exercise real LangChain, LangGraph, and langgraph-xai",
+    "concurrency: tests that exercise concurrent execution paths",
+    "postgres: tests requiring FEEDBACK_MANAGER_TEST_POSTGRES_DSN",
+    "examples: tests that execute the scripts under examples/",
+]
 
 [tool.ruff]
 line-length = 100
 target-version = "py312"
-src = ["src", "tests", "examples"]
-# docs/*.md embed real example source via pymdownx.snippets (`--8<--` include
-# directives). Ruff's Markdown formatter would reformat the fenced Python
-# blocks it finds there and corrupt those directives, so docs are excluded;
-# the underlying examples/*.py files are linted/formatted directly instead.
+# The docs embed example sources with pymdownx.snippets (`--8<--`) directives,
+# which a Markdown-aware formatter must not rewrite.
 extend-exclude = ["docs"]
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "UP", "B", "ASYNC", "SIM", "RUF"]
-ignore = ["E501"]
+select = [
+    "A",
+    "ARG",
+    "ASYNC",
+    "B",
+    "C4",
+    "D",
+    "DTZ",
+    "E",
+    "ERA",
+    "F",
+    "I",
+    "N",
+    "PERF",
+    "PIE",
+    "PT",
+    "PTH",
+    "RUF",
+    "S",
+    "SIM",
+    "T20",
+    "TC",
+    "UP",
+    "W",
+]
+ignore = [
+    "D105",
+    "D107",
+    "S101",
+]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
 
 [tool.ruff.lint.isort]
 known-first-party = ["feedback_manager"]
 
-[tool.mypy]
-python_version = "3.12"
-strict = true
-packages = ["feedback_manager"]
-mypy_path = "src"
-disallow_untyped_defs = true
-warn_unused_ignores = true
+[tool.ruff.lint.flake8-type-checking]
+runtime-evaluated-base-classes = ["pydantic.BaseModel"]
 
-[tool.pytest.ini_options]
-testpaths = ["tests"]
-asyncio_mode = "auto"
-markers = [
-    "integration: tests that exercise real langchain/langgraph/langgraph-xai dependencies",
-    "concurrency: tests that specifically exercise concurrent execution paths",
+[tool.ruff.lint.per-file-ignores]
+"examples/**/*.py" = [
+    "ARG",
+    "D",
+    "T201",
+    # Examples favor plain imports over TYPE_CHECKING blocks for readability.
+    "TC",
+]
+"scripts/**/*.py" = [
+    "ARG",
+    "D",
+    "T201",
+]
+"tests/**/*.py" = [
+    "A002",
+    "ARG",
+    "D",
+    "S101",
+    "S105",
+    "S106",
+    "S108",
+]
+"feedback-manager-skills/**/scripts/*.py" = [
+    "ARG",
+    "D",
+    "T201",
+]
+"feedback-manager-skills/**/assets/*.py" = [
+    "ARG",
+    "D",
+    # The assets are pytest templates.
+    "S101",
+]
+# Callback overrides must accept every argument of LangChain's signatures.
+"src/feedback_manager/integrations/langchain/callbacks.py" = ["ARG002"]
+
+[tool.ruff.format]
+docstring-code-format = true
+
+[tool.pyrefly]
+project-includes = [
+    "src",
+    "tests",
+    "examples",
+    "scripts",
+    "feedback-manager-skills",
+]
+search-path = [
+    "src",
+    ".",
+    "examples",
 ]
 
+# pyrefly cannot match LangGraph's TypedDict state bound (`StateGraph(State)`),
+# so this check is disabled where graphs are built, as in langgraph-xai.
+[[tool.pyrefly.sub-config]]
+matches = "tests/**"
+
+[tool.pyrefly.sub-config.errors]
+bad-specialization = false
+
+[[tool.pyrefly.sub-config]]
+matches = "examples/**"
+
+[tool.pyrefly.sub-config.errors]
+bad-specialization = false
+
+[[tool.pyrefly.sub-config]]
+matches = "feedback-manager-skills/**"
+
+[tool.pyrefly.sub-config.errors]
+bad-specialization = false
+
 [tool.coverage.run]
-source = ["src/feedback_manager"]
 branch = true
+source = ["feedback_manager"]
 
 [tool.coverage.report]
+fail_under = 100
 show_missing = true
-skip_empty = true
+skip_covered = true
+exclude_also = [
+    "if TYPE_CHECKING:",
+    '^\s*\.\.\.$',
+]

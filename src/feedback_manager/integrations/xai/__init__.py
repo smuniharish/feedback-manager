@@ -1,4 +1,4 @@
-"""Provenance integration with ``langgraph-xai``."""
+"""``langgraph-xai`` integration: provenance for feedback."""
 
 from feedback_manager.integrations.xai.adapter import XAIProvenanceAdapter
 

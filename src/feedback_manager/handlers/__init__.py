@@ -1,4 +1,4 @@
-"""Concrete feedback handler implementations bundled with the package."""
+"""Bundled `FeedbackHandler` implementations."""
 
 from feedback_manager.handlers.audit import AuditFeedbackHandler
 

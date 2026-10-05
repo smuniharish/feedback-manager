@@ -1,5 +1,5 @@
-"""Framework integration adapters.
+"""Framework integrations: thin translations to LangChain, LangGraph, and ``langgraph-xai``.
 
-Each subpackage is a thin translation boundary to one external framework;
-none of them reimplement that framework's runtime capabilities.
+Each subpackage translates between feedback-manager and one framework. None
+of them reimplements a framework capability.
 """

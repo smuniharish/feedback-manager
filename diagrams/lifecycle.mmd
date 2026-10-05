@@ -1,0 +1,13 @@
+flowchart TB
+    start@{ shape: sm-circ }
+    start -- "FeedbackEvent(...)" --> created["CREATED"]
+    created -- "submit()" --> received["RECEIVED"]
+    received -- "acknowledge()" --> acknowledged["ACKNOWLEDGED"]
+    acknowledged -- "mark_handled()" --> handled["HANDLED"]
+    handled -- "resolve()" --> resolved(["RESOLVED"])
+    received & acknowledged & handled -- "reject()" --> rejected(["REJECTED"])
+    created & received & acknowledged -- "expire()" --> expired(["EXPIRED"])
+    created & received & acknowledged & handled -- "cancel()" --> cancelled(["CANCELLED"])
+
+    classDef terminal fill:#ecf8f1,stroke:#2f8f5b,color:#0f2547
+    class resolved,rejected,expired,cancelled terminal

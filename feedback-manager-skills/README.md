@@ -1,54 +1,44 @@
-# feedback-manager Agent Skills
+# feedback-manager Agent Skill
 
-This directory is the canonical Agent Skills distribution for
-`feedback-manager`. It contains procedural guidance for coding agents that
-need to integrate, configure, test, or debug the existing `feedback-manager`
-package.
+This directory distributes the `feedback-manager` Agent Skill: instructions,
+references, a setup check, and a test template that teach coding agents to
+integrate the `feedback-manager` package correctly. It is not part of the
+Python package and adds no runtime behavior.
 
-It is not a Python package and does not add runtime behavior.
+## Layout
 
-| Component | Location | Purpose |
-| --- | --- | --- |
-| feedback-manager runtime | [`src/feedback_manager/`](https://github.com/smuniharish/feedback-manager/tree/master/src/feedback_manager) | The published Python package and its supported public API. |
-| feedback-manager Agent Skill | [`skills/feedback-manager/`](skills/feedback-manager/) | Canonical agent-oriented instructions and concise reference material. |
-| Skill validation | [`validation/`](validation/) | Validation procedure and realistic activation/task matrix. |
+| Path | Contents |
+| --- | --- |
+| [`skills/feedback-manager/SKILL.md`](skills/feedback-manager/SKILL.md) | When to use the skill, the core workflow, and the rules an integration follows |
+| [`skills/feedback-manager/references/`](skills/feedback-manager/references/) | `API.md`, `RECIPES.md`, and `TROUBLESHOOTING.md`, read when a task needs them |
+| [`skills/feedback-manager/scripts/verify_setup.py`](skills/feedback-manager/scripts/verify_setup.py) | An offline check of the project's environment and of the main feedback flows |
+| [`skills/feedback-manager/assets/test_feedback_integration.py`](skills/feedback-manager/assets/test_feedback_integration.py) | A pytest template for testing an application's feedback integration |
+| [`validation/`](validation/) | How the skill is validated and reviewed |
 
-## Agent Skills format
+## Format
 
-The canonical skill follows the Agent Skills `SKILL.md` format: a
-directory-scoped Markdown instruction file with required `name` and
-`description` YAML frontmatter. Its `name` matches its containing directory
-(`feedback-manager`), and only the specification's required frontmatter is
-used for portability.
+The skill follows the [Agent Skills specification](https://agentskills.io/specification):
 
-Compatible agents should load
-[`skills/feedback-manager/SKILL.md`](skills/feedback-manager/SKILL.md) when
-working on feedback capture, correlation, lifecycle, routing, persistence, or
-provenance for LangChain/LangGraph applications. The skill links to the
-repository's authoritative
-[documentation](https://feedback-manager.readthedocs.io) and
-[examples](https://github.com/smuniharish/feedback-manager/tree/master/examples)
-instead of maintaining a second copy of them.
+- The `SKILL.md` frontmatter has `name`, which matches the directory, and
+  `description`, `license`, `compatibility`, and `metadata.version`. The
+  version equals the `feedback-manager` release the skill describes.
+- `SKILL.md` stays short. Details live in `references/`, one level deep, so an
+  agent loads them only when a task needs them.
+- Scripts and assets are referenced by paths relative to the skill directory.
 
-For current skills.sh, Claude Code, Codex, Cursor, GitHub Copilot, and
-manual installation instructions, see
-[Agent Skills - feedback-manager](https://feedback-manager.readthedocs.io/en/latest/agent-skills/).
-This repository intentionally provides no Claude, Codex, or Copilot adapter
-because none is required to consume the canonical `SKILL.md`.
+Every Agent Skills host reads the same directory, so there is no separate copy
+for Claude Code, Codex, Cursor, or GitHub Copilot. Installation is described in
+the [documentation](https://feedback-manager.readthedocs.io/en/latest/agent-skills/).
 
-## Maintaining the distribution
+## Maintaining the skill
 
-When `feedback-manager`'s public API, supported integrations, or documented
-behavior changes:
+When the public API or documented behavior changes:
 
-1. Update the canonical skill and only the reference material affected by
-   that verified change.
-2. Link to the corresponding implementation, tests, examples, or
-   documentation; do not duplicate runtime logic.
-3. Run the process in [`validation/README.md`](validation/README.md).
-4. Do not add platform-specific copies of the skill text. Add thin metadata
-   only when a host's current official documentation demonstrates it is
-   required.
+1. Update the affected part of the skill, and `metadata.version` with each
+   release.
+2. Check every changed snippet and claim against the code, tests, or
+   documentation. Leave out anything that is not implemented.
+3. Run the checks in [`validation/README.md`](validation/README.md).
 
-The distribution is covered by the repository's Apache-2.0 license; see the
-[repository license](https://github.com/smuniharish/feedback-manager/blob/master/LICENSE).
+The skill is covered by the repository's Apache License 2.0; see
+[LICENSE](../LICENSE).

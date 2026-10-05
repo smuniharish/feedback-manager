@@ -1,20 +1,14 @@
-"""Example 4 -- Generation lifecycle feedback (interruption/failure).
+"""Record a generation the user stopped mid-stream, with the partial output.
 
-FeedbackManager does not implement a token-streaming engine -- use
-LangChain/LangGraph's own streaming for that. This example shows how an
-application reports meaningful generation lifecycle events (started,
-interrupted, failed) as feedback so they can be queried and correlated
-alongside human/tool feedback about the same generation.
+The application owns streaming; it reports the interruption as feedback and
+still lets the cancellation propagate.
 
-Run with::
+Run with:
 
     uv run python examples/04_generation_interruption.py
 """
 
 import asyncio
-import os
-import selectors
-import sys
 
 from feedback_manager import (
     ExecutionContext,
@@ -25,72 +19,55 @@ from feedback_manager import (
     FeedbackTargetType,
 )
 
-
-async def _build_manager() -> FeedbackManager:
-    # Zero-config by default (in-memory store); set FEEDBACK_MANAGER_POSTGRES_DSN
-    # to run this exact scenario against the real PostgreSQL store instead --
-    # see docs/examples/grafana-observability.md.
-    dsn = os.environ.get("FEEDBACK_MANAGER_POSTGRES_DSN")
-    if not dsn:
-        return FeedbackManager()
-    from postgres_feedback_store import PostgresFeedbackStore
-
-    store = await PostgresFeedbackStore.connect(dsn)
-    return FeedbackManager(store=store)
+TOKENS = ["Canberra", " is", " the", " capital", " of", " Australia", "."]
 
 
-def _run(coro):
-    # psycopg's async mode needs a selector event loop; Windows defaults to
-    # the proactor loop, so only override it there.
-    if sys.platform == "win32":
-        return asyncio.run(
-            coro, loop_factory=lambda: asyncio.SelectorEventLoop(selectors.SelectSelector())
-        )
-    return asyncio.run(coro)
-
-
-async def run_generation(
-    manager: FeedbackManager, generation_id: str, *, should_cancel: bool
-) -> None:
+async def stream_answer(manager: FeedbackManager, generation_id: str) -> str:
+    """Stream an answer token by token and report how the generation ended."""
+    target = FeedbackTarget(type=FeedbackTargetType.GENERATION, id=generation_id)
     context = ExecutionContext(generation_id=generation_id)
-    await manager.submit(
-        source=FeedbackSource.GENERATION,
-        category=FeedbackCategory.COMMENT,
-        feedback_type="generation_started",
-        target=FeedbackTarget(type=FeedbackTargetType.GENERATION, id=generation_id),
-        execution_context=context,
-    )
-
+    received: list[str] = []
     try:
-        if should_cancel:
-            raise asyncio.CancelledError
-        await asyncio.sleep(0)  # stand-in for the actual model call
-        await manager.submit(
-            source=FeedbackSource.GENERATION,
-            category=FeedbackCategory.COMPLETION,
-            feedback_type="generation_completed",
-            target=FeedbackTarget(type=FeedbackTargetType.GENERATION, id=generation_id),
-            execution_context=context,
-        )
+        for token in TOKENS:
+            await asyncio.sleep(0.02)  # stands in for the model streaming a token
+            received.append(token)
     except asyncio.CancelledError:
         await manager.submit(
             source=FeedbackSource.GENERATION,
             category=FeedbackCategory.INTERRUPTION,
             feedback_type="generation_interrupted",
-            target=FeedbackTarget(type=FeedbackTargetType.GENERATION, id=generation_id),
+            target=target,
+            payload={"partial_output": "".join(received), "tokens": len(received)},
             execution_context=context,
         )
+        raise
+    await manager.submit(
+        source=FeedbackSource.GENERATION,
+        category=FeedbackCategory.COMPLETION,
+        feedback_type="generation_completed",
+        target=target,
+        payload={"tokens": len(received)},
+        execution_context=context,
+    )
+    return "".join(received)
 
 
 async def main() -> None:
-    manager = await _build_manager()
+    manager = FeedbackManager()
 
-    await run_generation(manager, "gen-100", should_cancel=False)
-    await run_generation(manager, "gen-101", should_cancel=True)
+    print(f"Completed: {await stream_answer(manager, 'gen-100')!r}")
 
-    for event in await manager.list():
-        print(f"{event.feedback_type}: {event.category} for {event.target.id}")
+    stopped = asyncio.create_task(stream_answer(manager, "gen-101"))
+    await asyncio.sleep(0.07)  # the user presses "stop"
+    stopped.cancel()
+    try:
+        await stopped
+    except asyncio.CancelledError:
+        print("Generation gen-101 was stopped by the user.")
+
+    for event in await manager.query():
+        print(f"{event.target.id}: {event.category} {event.payload}")
 
 
 if __name__ == "__main__":
-    _run(main())
+    asyncio.run(main())

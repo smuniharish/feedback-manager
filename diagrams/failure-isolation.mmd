@@ -1,0 +1,7 @@
+flowchart LR
+    stage["A stage raises:<br/>correlation, provenance,<br/>routing, a handler,<br/>or a subscriber"] --> failed["Emit<br/>feedback.failed"]
+    failed --> mode{"Failure mode<br/>of the stage"}
+    mode -- "BEST_EFFORT<br/>(default)" --> carry["Log a warning with<br/>the traceback, continue<br/>without the stage's result"]
+    mode -- BLOCKING --> raise["Raise the stage's error,<br/>such as FeedbackHandlerError,<br/>with the original as #95;#95;cause#95;#95;"]
+    store["The store raises"] --> storefailed["Emit feedback.failed,<br/>raise FeedbackStoreError"]
+    sink["The observability<br/>sink raises"] --> sinklog["Log a warning,<br/>continue"]

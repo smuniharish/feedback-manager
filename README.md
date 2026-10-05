@@ -1,154 +1,66 @@
 # feedback-manager
 
-Production-grade feedback infrastructure for LangChain and LangGraph applications.
+[![PyPI](https://img.shields.io/pypi/v/feedback-manager.svg)](https://pypi.org/project/feedback-manager/)
+[![Python](https://img.shields.io/pypi/pyversions/feedback-manager.svg)](https://pypi.org/project/feedback-manager/)
+[![CI](https://github.com/smuniharish/feedback-manager/actions/workflows/ci.yml/badge.svg)](https://github.com/smuniharish/feedback-manager/actions/workflows/ci.yml)
+[![Docs](https://readthedocs.org/projects/feedback-manager/badge/?version=latest)](https://feedback-manager.readthedocs.io/)
+[![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](https://github.com/smuniharish/feedback-manager/blob/master/LICENSE)
 
-`feedback-manager` treats feedback as a first-class domain concern: capture it, correlate it to execution context, persist it, route it to handlers, and move it through an explicit lifecycle.
+**Feedback infrastructure for LangChain and LangGraph applications: capture,
+correlate, store, route, and resolve feedback as a first-class concern.**
 
-It is a **library**, not an agent framework or runtime.
+Agent applications constantly receive feedback: a reviewer approves a refund,
+a user corrects an answer, a tool times out, an evaluator scores a response.
+`feedback-manager` turns each of them into a validated, queryable record that
+knows which run, node, tool call, or interrupt it is about, groups it with
+related feedback, routes it to your handlers, and tracks it through an explicit
+lifecycle until it is resolved. LangGraph and LangChain keep owning execution;
+`feedback-manager` owns the feedback about it.
 
-## What it solves
+![feedback-manager architecture](https://raw.githubusercontent.com/smuniharish/feedback-manager/master/docs/assets/diagrams/architecture-overview.png)
 
-Agent applications often need to handle feedback from many places:
+## Features
 
-- human corrections on generated answers
-- approval or rejection decisions in human-in-the-loop flows
-- tool failures and timeouts
-- evaluator scores and critiques
-- generation interruptions or partial results
-- provenance-linked review or audit events
+- **One model for every kind of feedback.** Human corrections, approvals, tool
+  failures, evaluator scores, and interruptions share one immutable event, with
+  open sources, categories, and target types you can extend without
+  subclassing.
+- **Captured where it happens.** A LangChain callback handler records tool,
+  model, retriever, and node failures once, with the thread, node, and tool call
+  they happened in. A bridge records LangGraph human-in-the-loop requests and
+  decisions around native `interrupt()` and `Command(resume=...)`.
+- **An explicit, race-free lifecycle.** Feedback moves through a validated state
+  machine. Transitions are compare-and-set operations on the store, so
+  concurrent updates never overwrite each other and every change is published
+  exactly once. Retried calls are idempotent.
+- **Linked to provenance.** With a [langgraph-xai](https://github.com/smuniharish/langgraph-xai)
+  runtime, feedback points at the run, node, tool call, decision, and evidence
+  it is about.
+- **Isolated from failures.** A failing handler, subscriber, router, or
+  observability sink never loses stored feedback. Choose per stage whether a
+  failure is logged or raised.
+- **Bring your own infrastructure.** Swap the store, router, correlator,
+  policies, and observability sink through small, typed contracts. Complete
+  PostgreSQL and SQLite stores are included as examples.
 
-Without a dedicated feedback model, that data usually ends up fragmented across logs, UIs, tickets, and one-off tables.
+## Install
 
-`feedback-manager` gives you:
-
-- a typed feedback event model
-- correlation to runs, threads, checkpoints, nodes, tools, and generations
-- explicit lifecycle management
-- pluggable storage, routing, handlers, policies, and observability
-- framework helpers for LangChain callbacks and LangGraph human-in-the-loop
-  flows
-- provenance correlation backed exclusively by `langgraph-xai`
-
-## What it does not do
-
-`feedback-manager` does **not**:
-
-- execute agents
-- orchestrate graphs
-- replace LangGraph interrupts, checkpoints, or streaming
-- implement evaluators or LLM-as-judge systems
-- perform self-improvement or policy learning
-- own your application's business workflow
-
-LangChain, LangGraph, `langgraph-xai`, and your application code keep those responsibilities.
-
-## Installation
-
-Requirements:
-
-- Python `>=3.12,<3.15`
-
-Install the package:
-
-```powershell
-pip install .
+```bash
+pip install feedback-manager
 ```
 
-or for local development:
+Requires Python 3.12+. Installs `langgraph`, `langgraph-xai`, `pydantic`, and
+`structlog`; `langchain-core` comes with `langgraph`.
 
-```powershell
-uv sync --all-groups
-```
-
-Runtime dependencies are mandatory, not optional extras:
-
-- `langchain-core>=1.6,<2`
-- `langgraph>=1.2.11,<1.3`
-- `langgraph-xai>=0.1.0,<0.2`
-- `pydantic>=2.12,<3`
-
-## How it fits
-
-Applications interact with a small public surface:
-
-- create and query feedback through `FeedbackManager`
-- describe feedback using `FeedbackEvent`, source, category, target, and
-  execution-context types
-- replace documented persistence, routing, handler, policy, and
-  observability contracts when production infrastructure requires it
-- pass `XAIRuntime` directly to `FeedbackManager` for provenance
-- opt into the documented LangChain or LangGraph helpers where useful
-
-The happy-path lifecycle is:
-
-```text
-RECEIVED -> ACKNOWLEDGED -> HANDLED -> RESOLVED
-```
-
-`resolve()` requires the event to already be `HANDLED`.
-
-## Core concepts
-
-### Source
-
-Who or what produced the feedback:
-
-- `human`
-- `tool`
-- `generation`
-- `evaluator`
-- `system`
-- and custom open values
-
-### Category
-
-What kind of feedback it is:
-
-- `correction`
-- `approval`
-- `rejection`
-- `timeout`
-- `quality`
-- `interruption`
-- and custom open values
-
-### Target
-
-What the feedback is about:
-
-- graph
-- run
-- node
-- tool call
-- generation
-- message
-- state
-
-### Correlation
-
-Feedback can be linked to:
-
-- `run_id`
-- `thread_id`
-- `checkpoint_id`
-- `node_id`
-- `tool_call_id`
-- `generation_id`
-
-### Provenance
-
-When used with `langgraph-xai`, feedback can carry a `FeedbackProvenanceReference` resolved from an active run or from a provenance store by `run_id`.
-
-## Quick start
+## Quickstart
 
 ```python
 import asyncio
 
 from feedback_manager import (
     ExecutionContext,
-    FeedbackCategory,
     FeedbackManager,
-    FeedbackSource,
+    FeedbackQuery,
     FeedbackTarget,
     FeedbackTargetType,
 )
@@ -157,196 +69,80 @@ from feedback_manager import (
 async def main() -> None:
     manager = FeedbackManager()
 
+    # A person corrects a generated answer in conversation "support-7".
     feedback = await manager.submit(
-        source=FeedbackSource.HUMAN,
-        category=FeedbackCategory.CORRECTION,
+        source="human",
+        category="correction",
         target=FeedbackTarget(type=FeedbackTargetType.GENERATION, id="gen-42"),
-        payload={
-            "original_text": "The capital of Australia is Sydney.",
-            "corrected_text": "The capital of Australia is Canberra.",
-        },
-        execution_context=ExecutionContext(generation_id="gen-42"),
+        payload={"corrected_text": "Canberra is the capital of Australia."},
+        execution_context=ExecutionContext(thread_id="support-7"),
     )
+    print(f"{feedback.status}: correlated by {feedback.correlation_id}")
 
+    # Take it through its lifecycle once the correction is applied.
     await manager.acknowledge(feedback.feedback_id)
     await manager.mark_handled(feedback.feedback_id)
-    resolved = await manager.resolve(
-        feedback.feedback_id,
-        resolution={"applied": True, "channel": "manual_review"},
-    )
+    resolved = await manager.resolve(feedback.feedback_id, resolution={"applied_to": "faq"})
+    print(f"{resolved.status}: {resolved.resolution}")
 
-    print(resolved.status)
-    print(resolved.metadata["resolution"])
+    # Query it back, like any other feedback.
+    for event in await manager.query(FeedbackQuery(correlation_id="support-7")):
+        print(event.source, event.category, event.target.id, event.status)
 
 
 asyncio.run(main())
 ```
 
-## LangChain example
+Output:
 
-`FeedbackCallbackHandler` turns real LangChain callback errors into feedback:
+```text
+received: correlated by support-7
+resolved: {'applied_to': 'faq'}
+human correction gen-42 resolved
+```
+
+Record every tool, model, and node failure of an agent, without changing your
+error handling:
 
 ```python
-import asyncio
-
-from langchain_core.tools import tool
-
-from feedback_manager import FeedbackManager
 from feedback_manager.integrations.langchain import FeedbackCallbackHandler
 
-
-@tool
-async def fetch_weather(city: str) -> str:
-    raise TimeoutError(f"weather service timed out looking up {city!r}")
-
-
-async def main() -> None:
-    manager = FeedbackManager()
-    handler = FeedbackCallbackHandler(manager)
-
-    try:
-        await fetch_weather.ainvoke({"city": "Canberra"}, config={"callbacks": [handler]})
-    except TimeoutError:
-        pass
-
-    events = await manager.list()
-    print(events[0].source, events[0].category, events[0].target.type)
-
-
-asyncio.run(main())
+await graph.ainvoke(inputs, {"callbacks": [FeedbackCallbackHandler(manager)]})
 ```
 
-## LangGraph example
+## How it relates to LangGraph, LangSmith, and langgraph-xai
 
-Extract execution identifiers from a `RunnableConfig`:
-
-```python
-from feedback_manager.integrations.langgraph import execution_context_from_config
-
-config = {
-    "configurable": {"thread_id": "thread-1", "checkpoint_id": "cp-1"},
-    "metadata": {"xai_application_id": "support-bot"},
-}
-
-context = execution_context_from_config(config, node_id="answer_node")
-print(context.thread_id, context.checkpoint_id, context.node_id)
-```
-
-## HITL example
-
-Use native LangGraph interrupts and record the approval request with `HumanInTheLoopBridge`:
-
-```python
-import asyncio
-
-from feedback_manager import FeedbackManager, FeedbackTarget, FeedbackTargetType
-from feedback_manager.integrations.langgraph import HumanInTheLoopBridge
-
-
-async def main() -> None:
-    manager = FeedbackManager()
-    bridge = HumanInTheLoopBridge(manager)
-
-    feedback = await bridge.request(
-        target=FeedbackTarget(type=FeedbackTargetType.GRAPH, id="approval-flow"),
-        prompt={"question": "Approve sending this email?"},
-    )
-
-    resolved = await bridge.resolve(feedback.feedback_id, response="approved", approved=True)
-    resume = bridge.resume_command("approved")
-    print(resolved.status, resume)
-
-
-asyncio.run(main())
-```
-
-This complements LangGraph's runtime instead of replacing it.
-
-## Provenance example
-
-Attach provenance from `langgraph-xai` by passing the runtime directly --
-`FeedbackManager` wires up the provenance adapter automatically:
-
-```python
-from langgraph_xai import XAIRuntime
-
-from feedback_manager import FeedbackManager
-
-runtime = XAIRuntime(
-    application_id="support-bot",
-    tenant_id="acme-corp",
-    graph_id="qa-graph",
-)
-manager = FeedbackManager(xai_runtime=runtime)
-```
-
-When `manager.submit(...)` runs inside an instrumented graph node, the adapter can resolve provenance from `runtime.current_run`.
-
-## Extension example
-
-### Custom source/category values
-
-```python
-from feedback_manager import FeedbackCategory, FeedbackSource
-
-source = FeedbackSource("mcp_server")
-category = FeedbackCategory("business_policy_violation")
-```
-
-### Custom store
-
-```python
-from collections.abc import Sequence
-from uuid import UUID
-
-from feedback_manager.contracts import FeedbackQuery, FeedbackStore
-from feedback_manager import FeedbackEvent, FeedbackStatus
-
-
-class MyStore(FeedbackStore):
-    async def create(self, feedback: FeedbackEvent) -> FeedbackEvent: ...
-    async def get(self, feedback_id: UUID) -> FeedbackEvent | None: ...
-    async def update(self, feedback: FeedbackEvent) -> FeedbackEvent: ...
-    async def transition(self, feedback_id: UUID, status: FeedbackStatus) -> FeedbackEvent: ...
-    async def query(self, query: FeedbackQuery) -> Sequence[FeedbackEvent]: ...
-    async def list(self) -> Sequence[FeedbackEvent]: ...
-```
-
-### Custom handler
-
-```python
-from feedback_manager.contracts import FeedbackContext, FeedbackHandler, FeedbackHandlerResult
-from feedback_manager import FeedbackEvent
-
-
-class HumanReviewHandler(FeedbackHandler):
-    async def handle(
-        self, feedback: FeedbackEvent, context: FeedbackContext
-    ) -> FeedbackHandlerResult:
-        return FeedbackHandlerResult(handled=True, detail="queued for review")
-```
+LangGraph runs your agents and pauses them for human input. LangSmith and other
+tracing tools show what ran. [langgraph-xai](https://github.com/smuniharish/langgraph-xai)
+records why it was decided. `feedback-manager` manages the feedback about all of
+it: what people, evaluators, and failing components said, what it refers to,
+who handles it, and how it was resolved.
 
 ## Documentation
 
-The full documentation site lives under `docs/` and includes:
+Full documentation: **[feedback-manager.readthedocs.io](https://feedback-manager.readthedocs.io/)**
 
-- architecture guides
-- ADRs
-- getting-started guides
-- concept references
-- integration guides
-- API reference
-- advanced extension guides
-- reliability, security, testing, and FAQ pages
+- [Quickstart](https://feedback-manager.readthedocs.io/en/latest/getting-started/quickstart/)
+- [Concepts](https://feedback-manager.readthedocs.io/en/latest/concepts/)
+- [How-to guides](https://feedback-manager.readthedocs.io/en/latest/how-to/)
+- [Examples](https://feedback-manager.readthedocs.io/en/latest/examples/)
+- [API reference](https://feedback-manager.readthedocs.io/en/latest/api/)
 
-Published documentation URL (project metadata): <https://feedback-manager.readthedocs.io>
+Changes are listed in the
+[changelog](https://github.com/smuniharish/feedback-manager/blob/master/CHANGELOG.md).
+An [Agent Skill](https://feedback-manager.readthedocs.io/en/latest/agent-skills/)
+teaches coding agents such as Claude Code, Codex, Cursor, and GitHub Copilot to
+integrate `feedback-manager` correctly.
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for local development setup, running
-the test suite/coverage, linting, type-checking, and building the docs site.
+Contributions are welcome. See
+[CONTRIBUTING.md](https://github.com/smuniharish/feedback-manager/blob/master/CONTRIBUTING.md)
+for the development setup and checks, and
+[SECURITY.md](https://github.com/smuniharish/feedback-manager/blob/master/SECURITY.md)
+to report a vulnerability.
 
-## Author and license
+## License
 
-- Author: **S MUNI HARISH**
-- License: **Apache License 2.0**
+Apache License 2.0. See
+[LICENSE](https://github.com/smuniharish/feedback-manager/blob/master/LICENSE).

@@ -1,38 +1,23 @@
-"""Example 10 -- exercise every (source, category, target type) combination.
+"""Submit one event for every (source, category, target type) combination.
 
-The Streamlit UI (``examples/streamlit_feedback_ui.py``) demonstrates a
-*human* clicking through a handful of representative submissions. That is
-not the same as proving the pipeline actually accepts every value of every
-open, extensible identifier feedback-manager defines:
+Proves the whole pipeline accepts every well-known value of each open value
+type: 8 sources x 15 categories x 13 target types = 1560 submissions, run
+concurrently, then read back and checked. Uses the in-memory store, or, when
+``FEEDBACK_MANAGER_POSTGRES_DSN`` is set, PostgreSQL in a separate
+``feedback_matrix`` table, so these synthetic probes never mix with real
+feedback.
 
-    - :class:`~feedback_manager.core.sources.FeedbackSource` (8 well-known values)
-    - :class:`~feedback_manager.core.categories.FeedbackCategory` (15 well-known values)
-    - :class:`~feedback_manager.core.targets.FeedbackTargetType` (13 well-known values)
-
-This script submits one real ``FeedbackEvent`` for *every* combination of
-those three -- 8 x 15 x 13 = 1560 real submissions -- against the same real
-PostgreSQL store used by the other examples (falls back to
-``InMemoryFeedbackStore`` if ``FEEDBACK_MANAGER_POSTGRES_DSN`` is unset), and
-then queries the database back to prove every well-known value of every
-axis actually landed, with the expected row count.
-
-Run with::
+Run with:
 
     uv run python examples/10_full_matrix_feedback.py
-
-(Set ``FEEDBACK_MANAGER_POSTGRES_DSN`` first to verify against real
-PostgreSQL instead of the in-memory store.)
 """
-
-from __future__ import annotations
 
 import asyncio
 import itertools
 import os
-import selectors
-import sys
 import time
-from collections import Counter
+
+from postgres_feedback_store import DSN_VARIABLE, PostgresFeedbackStore, run
 
 from feedback_manager import (
     FeedbackCategory,
@@ -42,134 +27,57 @@ from feedback_manager import (
     FeedbackTargetType,
 )
 
-# The full well-known set for each axis. Each type is an open ``str``
-# subclass, so this is "every value the package ships a named constant for",
-# not a closed enum.
-ALL_SOURCES: list[FeedbackSource] = [
-    FeedbackSource.HUMAN,
-    FeedbackSource.AGENT,
-    FeedbackSource.GENERATION,
-    FeedbackSource.TOOL,
-    FeedbackSource.EVALUATOR,
-    FeedbackSource.APPLICATION,
-    FeedbackSource.SYSTEM,
-    FeedbackSource.EXTERNAL,
-]
 
-ALL_CATEGORIES: list[FeedbackCategory] = [
-    FeedbackCategory.APPROVAL,
-    FeedbackCategory.REJECTION,
-    FeedbackCategory.CORRECTION,
-    FeedbackCategory.RATING,
-    FeedbackCategory.COMMENT,
-    FeedbackCategory.INTERRUPTION,
-    FeedbackCategory.CANCELLATION,
-    FeedbackCategory.FAILURE,
-    FeedbackCategory.TIMEOUT,
-    FeedbackCategory.VALIDATION,
-    FeedbackCategory.QUALITY,
-    FeedbackCategory.UNCERTAINTY,
-    FeedbackCategory.REQUEST_FOR_HUMAN,
-    FeedbackCategory.PARTIAL_RESULT,
-    FeedbackCategory.COMPLETION,
-]
-
-ALL_TARGET_TYPES: list[FeedbackTargetType] = [
-    FeedbackTargetType.APPLICATION,
-    FeedbackTargetType.AGENT,
-    FeedbackTargetType.GRAPH,
-    FeedbackTargetType.THREAD,
-    FeedbackTargetType.RUN,
-    FeedbackTargetType.CHECKPOINT,
-    FeedbackTargetType.NODE,
-    FeedbackTargetType.TASK,
-    FeedbackTargetType.TOOL_CALL,
-    FeedbackTargetType.TOOL_RESULT,
-    FeedbackTargetType.GENERATION,
-    FeedbackTargetType.MESSAGE,
-    FeedbackTargetType.STATE,
-]
-
-
-def _run(coro):
-    """Windows + psycopg async needs a selector-based event loop (see example 1)."""
-    if sys.platform == "win32":
-        return asyncio.run(
-            coro, loop_factory=lambda: asyncio.SelectorEventLoop(selectors.SelectSelector())
+async def submit_matrix(manager: FeedbackManager, run_tag: str) -> int:
+    combinations = list(
+        itertools.product(
+            FeedbackSource.known_values(),
+            FeedbackCategory.known_values(),
+            FeedbackTargetType.known_values(),
         )
-    return asyncio.run(coro)
-
-
-async def _build_manager() -> FeedbackManager:
-    dsn = os.environ.get("FEEDBACK_MANAGER_POSTGRES_DSN")
-    if dsn:
-        from postgres_feedback_store import PostgresFeedbackStore
-
-        store = await PostgresFeedbackStore.connect(dsn)
-        return FeedbackManager(store=store)
-    return FeedbackManager()
-
-
-async def main() -> None:
-    manager = await _build_manager()
-    backend = "PostgreSQL" if os.environ.get("FEEDBACK_MANAGER_POSTGRES_DSN") else "in-memory"
-
-    combinations = list(itertools.product(ALL_SOURCES, ALL_CATEGORIES, ALL_TARGET_TYPES))
-    print(f"Backend: {backend}")
-    print(
-        f"Matrix: {len(ALL_SOURCES)} sources x {len(ALL_CATEGORIES)} categories x "
-        f"{len(ALL_TARGET_TYPES)} target types = {len(combinations)} combinations"
     )
+    limit = asyncio.Semaphore(25)
 
-    semaphore = asyncio.Semaphore(25)
-    seen_sources: Counter[str] = Counter()
-    seen_categories: Counter[str] = Counter()
-    seen_target_types: Counter[str] = Counter()
-
-    async def submit_one(
-        source: FeedbackSource, category: FeedbackCategory, target_type: FeedbackTargetType
-    ) -> None:
-        async with semaphore:
-            target_id = f"matrix::{source}::{category}::{target_type}"
+    async def submit(source: str, category: str, target_type: str) -> None:
+        async with limit:
             await manager.submit(
                 source=source,
                 category=category,
-                target=FeedbackTarget(type=target_type, id=target_id),
-                payload={"matrix_probe": True},
-                metadata={
-                    "source": str(source),
-                    "category": str(category),
-                    "target_type": str(target_type),
-                },
+                target=FeedbackTarget(type=target_type, id=f"{run_tag}:{source}:{category}"),
+                payload={"probe": True},
+                feedback_type=run_tag,
             )
-        seen_sources[str(source)] += 1
-        seen_categories[str(category)] += 1
-        seen_target_types[str(target_type)] += 1
+
+    await asyncio.gather(*(submit(*combination) for combination in combinations))
+    return len(combinations)
+
+
+async def main() -> None:
+    dsn = os.environ.get(DSN_VARIABLE)
+    store = await PostgresFeedbackStore.open(dsn, table="feedback_matrix") if dsn else None
+    manager = FeedbackManager(store=store)
+    run_tag = f"matrix-{time.time_ns()}"
+    print(f"Store: {'PostgreSQL' if store else 'in-memory'}")
 
     started = time.perf_counter()
-    await asyncio.gather(*(submit_one(*combo) for combo in combinations))
+    submitted = await submit_matrix(manager, run_tag)
     elapsed = time.perf_counter() - started
+    print(f"Submitted {submitted} events in {elapsed:.2f}s")
 
-    print(f"\nSubmitted {len(combinations)} real feedback events in {elapsed:.2f}s")
-    print(f"Distinct sources observed:      {len(seen_sources)} / {len(ALL_SOURCES)}")
-    print(f"Distinct categories observed:    {len(seen_categories)} / {len(ALL_CATEGORIES)}")
-    print(f"Distinct target types observed:  {len(seen_target_types)} / {len(ALL_TARGET_TYPES)}")
-    assert len(seen_sources) == len(ALL_SOURCES)
-    assert len(seen_categories) == len(ALL_CATEGORIES)
-    assert len(seen_target_types) == len(ALL_TARGET_TYPES)
-
-    all_events = await manager.list()
-    matrix_events = [e for e in all_events if e.payload.get("matrix_probe")]
-    print(
-        f"\nReal events re-read back from the store: {len(matrix_events)} (expected {len(combinations)})"
+    stored = [event for event in await manager.query() if event.feedback_type == run_tag]
+    triples = {(event.source, event.category, event.target.type) for event in stored}
+    axes = (
+        ("sources", FeedbackSource.known_values()),
+        ("categories", FeedbackCategory.known_values()),
+        ("target types", FeedbackTargetType.known_values()),
     )
-    assert len(matrix_events) == len(combinations)
-
-    distinct_triples = {(e.source, e.category, e.target.type) for e in matrix_events}
-    print(f"Distinct (source, category, target_type) triples persisted: {len(distinct_triples)}")
-    assert len(distinct_triples) == len(combinations)
-    print("Every combination round-tripped through the real pipeline exactly once.")
+    for index, (name, values) in enumerate(axes):
+        print(f"Distinct {name}: {len({triple[index] for triple in triples})} of {len(values)}")
+    print(f"Distinct combinations stored: {len(triples)} of {submitted}")
+    assert len(stored) == len(triples) == submitted
+    if store is not None:
+        await store.close()
 
 
 if __name__ == "__main__":
-    _run(main())
+    run(main())

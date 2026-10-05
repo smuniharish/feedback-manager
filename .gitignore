@@ -2,42 +2,37 @@
 __pycache__/
 *.py[cod]
 *.egg-info/
-.eggs/
 build/
 dist/
-*.egg
 
 # Virtual environments
 .venv/
 venv/
 
-# uv
-uv.lock.bak
-
-# Testing / coverage
+# Tests and coverage
 .pytest_cache/
+.hypothesis/
 .coverage
 .coverage.*
 htmlcov/
 coverage.xml
 
-# Type checking
-.mypy_cache/
-.pyre/
-.pytype/
+# Linters and type checkers
 .ruff_cache/
 
-# Docs
+# Documentation
 site/
-docs/api/reference/
 
-# Editors / OS
+# Node.js (diagram rendering)
+node_modules/
+
+# Editors and operating systems
 .vscode/
 .idea/
 .DS_Store
 Thumbs.db
 
-# Env files
+# Local environment files
 .env
 .env.*
 !.env.example

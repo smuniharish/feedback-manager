@@ -1,60 +1,52 @@
-"""Execution and correlation context: how feedback ties back to a run.
-
-``ExecutionContext`` is a thin bag of optional identifiers -- deliberately
-*not* coupled to LangGraph or ``langgraph_xai`` internal types. Integration
-adapters (``feedback_manager.integrations.*``) are responsible for
-extracting these identifiers from framework-native objects (a LangGraph
-``RunnableConfig``, a ``langgraph_xai`` ``ExecutionContext``, ...).
-
-``CorrelationContext`` links a feedback event to other feedback events and/or
-an ``ExecutionContext``. Almost every field on both models is optional:
-feedback should be usable even when only partial correlation information is
-available (e.g. a human comment with no execution context at all).
-"""
+"""The execution a piece of feedback refers to."""
 
 from __future__ import annotations
 
-from typing import Any
-from uuid import UUID
-
 from pydantic import BaseModel, ConfigDict, Field
+
+from feedback_manager.core._types import Identifier, JsonObject
 
 
 class ExecutionContext(BaseModel):
-    """Identifiers describing the execution that produced a feedback target."""
+    """Identifiers of the execution that produced the feedback target.
 
-    model_config = ConfigDict(frozen=True)
+    Every field is optional: feedback stays useful with partial context, such
+    as a human comment that carries no run information at all. The helpers in
+    `feedback_manager.integrations.langgraph` fill these fields from a
+    LangGraph or LangChain config, or from a paused graph's state snapshot.
 
-    application_id: str | None = None
-    tenant_id: str | None = None
-    graph_id: str | None = None
-    thread_id: str | None = None
-    run_id: str | None = None
-    checkpoint_id: str | None = None
-    node_id: str | None = None
-    task_id: str | None = None
-    message_id: str | None = None
-    tool_call_id: str | None = None
-    generation_id: str | None = None
-    metadata: dict[str, Any] = Field(default_factory=dict)
+    Attributes:
+        application_id: The application, as used by ``langgraph-xai``.
+        tenant_id: The tenant, as used by ``langgraph-xai``.
+        graph_id: The graph, as used by ``langgraph-xai``.
+        thread_id: The LangGraph thread.
+        run_id: The run. Inside a ``langgraph-xai`` instrumented call this is
+            the ``langgraph-xai`` run ID, which provenance resolution uses.
+        checkpoint_id: The LangGraph checkpoint.
+        node_id: The graph node.
+        task_id: The LangGraph task.
+        message_id: The message.
+        tool_call_id: The tool call.
+        generation_id: The model generation.
+        interrupt_id: The LangGraph interrupt the feedback answers.
+        metadata: JSON-compatible details about the execution.
+    """
 
-    def is_empty(self) -> bool:
-        """Return ``True`` if no identifying field was set."""
-        return (
-            all(value is None for field, value in self if field != "metadata") and not self.metadata
-        )
+    model_config = ConfigDict(frozen=True, allow_inf_nan=False)
+
+    application_id: Identifier | None = None
+    tenant_id: Identifier | None = None
+    graph_id: Identifier | None = None
+    thread_id: Identifier | None = None
+    run_id: Identifier | None = None
+    checkpoint_id: Identifier | None = None
+    node_id: Identifier | None = None
+    task_id: Identifier | None = None
+    message_id: Identifier | None = None
+    tool_call_id: Identifier | None = None
+    generation_id: Identifier | None = None
+    interrupt_id: Identifier | None = None
+    metadata: JsonObject = Field(default_factory=dict)
 
 
-class CorrelationContext(BaseModel):
-    """Links a feedback event to other feedback and/or an execution context."""
-
-    model_config = ConfigDict(frozen=True)
-
-    correlation_id: str | None = None
-    parent_feedback_id: UUID | None = None
-    related_feedback_ids: tuple[UUID, ...] = Field(default_factory=tuple)
-    execution: ExecutionContext | None = None
-    metadata: dict[str, Any] = Field(default_factory=dict)
-
-
-__all__ = ["CorrelationContext", "ExecutionContext"]
+__all__ = ["ExecutionContext"]

@@ -1,11 +1,13 @@
-"""Feedback-specific observability hooks (no bundled tracing platform)."""
+"""Feedback-specific observability events and sinks."""
 
 from feedback_manager.observability.hooks import (
     FEEDBACK_ACKNOWLEDGED,
-    FEEDBACK_CREATED,
+    FEEDBACK_CANCELLED,
+    FEEDBACK_EXPIRED,
     FEEDBACK_FAILED,
     FEEDBACK_HANDLED,
     FEEDBACK_RECEIVED,
+    FEEDBACK_REJECTED,
     FEEDBACK_RESOLVED,
     FEEDBACK_ROUTED,
     LoggingObservabilitySink,
@@ -16,10 +18,12 @@ from feedback_manager.observability.hooks import (
 
 __all__ = [
     "FEEDBACK_ACKNOWLEDGED",
-    "FEEDBACK_CREATED",
+    "FEEDBACK_CANCELLED",
+    "FEEDBACK_EXPIRED",
     "FEEDBACK_FAILED",
     "FEEDBACK_HANDLED",
     "FEEDBACK_RECEIVED",
+    "FEEDBACK_REJECTED",
     "FEEDBACK_RESOLVED",
     "FEEDBACK_ROUTED",
     "LoggingObservabilitySink",

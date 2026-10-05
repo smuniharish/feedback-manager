@@ -1,32 +1,27 @@
-"""Helpers for correlating LangGraph's own streaming output with feedback.
-
-FeedbackManager does not implement a streaming engine -- it uses
-``graph.astream(...)`` exactly as LangGraph provides it. This module only
-recognizes the ``__interrupt__`` marker LangGraph emits (with
-``stream_mode="updates"``) so callers can react to a pause with
-:class:`~feedback_manager.integrations.langgraph.interrupt.HumanInTheLoopBridge`
-without hand-rolling that detection themselves.
-"""
+"""Finding interrupts in LangGraph results and stream chunks."""
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Mapping
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from langgraph.types import Interrupt
 
+if TYPE_CHECKING:
+    from collections.abc import Mapping
+
 INTERRUPT_KEY = "__interrupt__"
+"""The key under which LangGraph reports pending interrupts."""
 
 
 def extract_interrupts(chunk: Mapping[str, Any]) -> tuple[Interrupt, ...]:
-    """Return any ``Interrupt`` objects carried by a LangGraph stream chunk.
+    """Return the interrupts in a LangGraph result or ``stream_mode="updates"`` chunk.
 
-    Returns an empty tuple for chunks that are not interruptions.
+    Works with the value ``invoke``/``ainvoke`` return for a paused graph and
+    with the chunks of ``stream``/``astream``. Returns an empty tuple when the
+    graph did not pause.
     """
-    payload: Iterable[Any] | None = chunk.get(INTERRUPT_KEY)
-    if not payload:
-        return ()
-    return tuple(item for item in payload if isinstance(item, Interrupt))
+    pending = chunk.get(INTERRUPT_KEY) or ()
+    return tuple(item for item in pending if isinstance(item, Interrupt))
 
 
 __all__ = ["INTERRUPT_KEY", "extract_interrupts"]

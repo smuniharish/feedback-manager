@@ -1,0 +1,19 @@
+{
+  "mermaidVersion": "12.0.0",
+  "renderOptions": {
+    "scale": 2,
+    "background": "white"
+  },
+  "configChecksum": "ddfe7bd2b8de229efd0daef29f6d7f282c33ff0965b4811ceb884bb4a215cf40",
+  "sources": {
+    "architecture-overview.mmd": "977d5d3209e51ab2bd58141bcf791f81921ab1311e5034219d202d55095e2593",
+    "extension-points.mmd": "6c21b0ba8561d41a731bf748b0ec92299d38eb314eacb3985f0cd0480eb53e0f",
+    "failure-isolation.mmd": "16cad83a0a62213b975b90229be6e15d435baec28a4231db1d598704227faf2d",
+    "hitl-sequence.mmd": "2be21abc4ada699aacb6675c31fd7abcf356503ab919c47a34bf8b4a61ac76da",
+    "langchain-capture.mmd": "79e1c0fc6e56242bd08abcf535cb6daba6a9d2db58185aee5bf31bc4b93b0aa2",
+    "lifecycle.mmd": "612c5f164924134dbfa049a70d8735f1f2bb2e7560b81fca21dae7028cd9c19e",
+    "provenance-resolution.mmd": "c2c1f8b76890229b1f7c1e73a079291e452cb999b00d98c24e3b761f06e30a3c",
+    "submit-pipeline.mmd": "f9ba84945e1a9ccfe0adf56a7f7002ac1b45e157c2f0eaa5a258b6024a0b3f95",
+    "transition-cas.mmd": "96acc0e5515e50ccc09c54366129cc9d7f3e953344e384552eab7ae4e170cb2d"
+  }
+}

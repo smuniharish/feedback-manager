@@ -1,37 +1,28 @@
-"""A real, working feedback-capture UI built with Streamlit.
+"""A feedback capture and review UI built with Streamlit.
 
-``feedback-manager`` is deliberately not a UI product (Section 0 of the
-spec explicitly rules out "a UI product" / "a hosted service"). This file
-demonstrates -- for developers embedding the package into *their* own
-application -- how little glue code a real human-feedback capture surface
-needs on top of :class:`~feedback_manager.api.manager.FeedbackManager`.
-It is not part of the installable package; it lives in ``examples/`` as a
-runnable reference.
+feedback-manager is a library, not a UI. This app shows how little code a
+feedback screen needs on top of `FeedbackManager`: a form to submit feedback,
+lifecycle buttons, and a filtered feed. It keeps feedback in memory, or in
+PostgreSQL when ``FEEDBACK_MANAGER_POSTGRES_DSN`` is set.
 
-Run it with::
+Run with:
 
     uv run streamlit run examples/streamlit_feedback_ui.py
-
-By default it uses :class:`~feedback_manager.storage.memory.InMemoryFeedbackStore`
-(so it runs with zero external services). Set ``FEEDBACK_MANAGER_POSTGRES_DSN``
-to point it at a real PostgreSQL instance (see ``examples/postgres_feedback_store.py``)
-to verify that feedback submitted through the UI is really persisted, not
-just held in the Streamlit process's memory.
 """
-
-from __future__ import annotations
 
 import asyncio
 import os
-import selectors
 import sys
+import threading
+from collections.abc import Coroutine
 from typing import Any
-from uuid import UUID
 
 import streamlit as st
 
 from feedback_manager import (
     FeedbackCategory,
+    FeedbackEvent,
+    FeedbackLifecycleError,
     FeedbackManager,
     FeedbackQuery,
     FeedbackSource,
@@ -39,177 +30,150 @@ from feedback_manager import (
     FeedbackTarget,
     FeedbackTargetType,
 )
+from feedback_manager.core import TERMINAL_STATUSES
+
+DSN_VARIABLE = "FEEDBACK_MANAGER_POSTGRES_DSN"
+OPEN_STATUSES = tuple(status for status in FeedbackStatus if status not in TERMINAL_STATUSES)
 
 
-def _run(coro: Any) -> Any:
-    """Run an async ``feedback_manager`` call from Streamlit's sync script.
-
-    Streamlit reruns this whole module top-to-bottom on every interaction,
-    single-threaded, with no event loop already running -- so a fresh
-    ``asyncio.run()`` per call is the simplest correct bridge. On Windows,
-    ``psycopg``'s async mode additionally requires a selector-based loop
-    (the default ``ProactorEventLoop`` does not support it).
-    """
-    if sys.platform == "win32":
-        return asyncio.run(
-            coro, loop_factory=lambda: asyncio.SelectorEventLoop(selectors.SelectSelector())
-        )
-    return asyncio.run(coro)
+def event_label(event: FeedbackEvent) -> str:
+    """How one event is listed; the ID prefix tells apart events that look alike."""
+    return (
+        f"{event.category} on {event.target.type} {event.target.id} "
+        f"[{event.status}] {str(event.feedback_id)[:8]}"
+    )
 
 
 @st.cache_resource
-def get_manager() -> FeedbackManager:
-    """Build (once per Streamlit session) the ``FeedbackManager`` the whole app shares."""
-    dsn = os.environ.get("FEEDBACK_MANAGER_POSTGRES_DSN")
-    if dsn:
-        from postgres_feedback_store import PostgresFeedbackStore
-
-        store = _run(PostgresFeedbackStore.connect(dsn))
-        return FeedbackManager(store=store)
-    return FeedbackManager()
+def event_loop() -> asyncio.AbstractEventLoop:
+    """One event loop for the whole app, so connection pools stay on a single loop."""
+    loop = asyncio.SelectorEventLoop() if sys.platform == "win32" else asyncio.new_event_loop()
+    threading.Thread(target=loop.run_forever, name="feedback-loop", daemon=True).start()
+    return loop
 
 
-def _target_options() -> list[str]:
-    return [
-        FeedbackTargetType.GENERATION,
-        FeedbackTargetType.TOOL_CALL,
-        FeedbackTargetType.NODE,
-        FeedbackTargetType.AGENT,
-        FeedbackTargetType.GRAPH,
-        FeedbackTargetType.RUN,
-    ]
+def run[T](coroutine: Coroutine[Any, Any, T]) -> T:
+    """Run a coroutine on the app's event loop from Streamlit's script thread."""
+    return asyncio.run_coroutine_threadsafe(coroutine, event_loop()).result()
 
 
-def _category_options() -> list[str]:
-    return [
-        FeedbackCategory.RATING,
-        FeedbackCategory.APPROVAL,
-        FeedbackCategory.REJECTION,
-        FeedbackCategory.CORRECTION,
-        FeedbackCategory.COMMENT,
-        FeedbackCategory.FAILURE,
-        FeedbackCategory.QUALITY,
-        FeedbackCategory.REQUEST_FOR_HUMAN,
-    ]
+@st.cache_resource
+def feedback_manager() -> FeedbackManager:
+    dsn = os.environ.get(DSN_VARIABLE)
+    if not dsn:
+        return FeedbackManager()
+    from postgres_feedback_store import PostgresFeedbackStore
+
+    return FeedbackManager(store=run(PostgresFeedbackStore.open(dsn)))
 
 
-def _source_options() -> list[str]:
-    # All eight well-known FeedbackSource values (FeedbackSource is an open
-    # string type, so this is the full "well-known" set, not an exhaustive
-    # enum) -- every source feedback-manager is designed to accept, not
-    # just human-submitted feedback.
-    return [
-        FeedbackSource.HUMAN,
-        FeedbackSource.AGENT,
-        FeedbackSource.GENERATION,
-        FeedbackSource.TOOL,
-        FeedbackSource.EVALUATOR,
-        FeedbackSource.APPLICATION,
-        FeedbackSource.SYSTEM,
-        FeedbackSource.EXTERNAL,
-    ]
-
-
-def render_submit_form(manager: FeedbackManager) -> None:
+def submit_form(manager: FeedbackManager) -> None:
     st.subheader("Submit feedback")
-    with st.form("submit_feedback", clear_on_submit=True):
-        col1, col2, col3 = st.columns(3)
-        source = col1.selectbox("Source", _source_options())
-        category = col2.selectbox("Category", _category_options())
-        target_type = col3.selectbox("Target type", _target_options())
-        target_id = st.text_input("Target id", value="agent-run-1")
+    with st.form("submit", clear_on_submit=True):
+        left, middle, right = st.columns(3)
+        source = left.selectbox("Source", FeedbackSource.known_values())
+        category = middle.selectbox("Category", FeedbackCategory.known_values(), index=3)
+        target_type = right.selectbox("Target type", FeedbackTargetType.known_values(), index=10)
+        target_id = st.text_input("Target ID", value="gen-1")
         rating = st.slider("Rating", min_value=1, max_value=5, value=4)
-        comment = st.text_area("Comment", placeholder="What happened, and was it correct?")
-        submitted = st.form_submit_button("Submit feedback", type="primary")
-
-        if submitted:
-            event = _run(
+        comment = st.text_area("Comment", placeholder="What happened, and was it right?")
+        if st.form_submit_button("Submit", type="primary"):
+            feedback = run(
                 manager.submit(
                     source=source,
                     category=category,
-                    target=FeedbackTarget(type=target_type, id=target_id),
+                    target=FeedbackTarget(type=target_type, id=target_id.strip() or "unknown"),
                     payload={"rating": rating, "comment": comment},
                 )
             )
-            st.success(f"Feedback {event.feedback_id} submitted -- status={event.status}")
+            st.success(f"Recorded {feedback.feedback_id} ({feedback.status})")
 
 
-def render_lifecycle_actions(manager: FeedbackManager) -> None:
-    st.subheader("Lifecycle actions")
-    events = _run(manager.list())
-    if not events:
-        st.info("No feedback submitted yet.")
+def lifecycle_actions(manager: FeedbackManager) -> None:
+    st.subheader("Review")
+    # The 50 newest open events: query each open status, so closed ones never crowd them out.
+    open_feedback = sorted(
+        (
+            event
+            for status in OPEN_STATUSES
+            for event in run(
+                manager.query(FeedbackQuery(status=status, newest_first=True, limit=50))
+            )
+        ),
+        key=lambda event: event.created_at,
+        reverse=True,
+    )[:50]
+    if not open_feedback:
+        st.info("No open feedback.")
         return
-
-    labels = {
-        f"{event.feedback_id} [{event.status}] {event.category} on {event.target.id}": event.feedback_id
-        for event in events
+    by_id = {str(event.feedback_id): event for event in open_feedback}
+    # The key keeps the reviewer's choice while other sessions change the list.
+    # Without a default, a choice that another session closes becomes no choice.
+    choice = st.selectbox(
+        "Feedback",
+        list(by_id),
+        index=None,
+        format_func=lambda key: event_label(by_id[key]),
+        key="review_selection",
+        placeholder="Choose feedback to review",
+    )
+    actions = {
+        "Acknowledge": manager.acknowledge,
+        "Mark handled": manager.mark_handled,
+        "Resolve": manager.resolve,
+        "Reject": manager.reject,
     }
-    selection = st.selectbox("Feedback event", list(labels.keys()))
-    feedback_id: UUID = labels[selection]
-
-    col1, col2, col3, col4 = st.columns(4)
-    if col1.button("Acknowledge"):
-        _run(manager.acknowledge(feedback_id))
-        st.rerun()
-    if col2.button("Mark handled"):
-        _run(manager.mark_handled(feedback_id))
-        st.rerun()
-    if col3.button("Resolve"):
-        _run(manager.resolve(feedback_id, resolution={"resolved_via": "streamlit-ui"}))
-        st.rerun()
-    if col4.button("Reject"):
-        _run(manager.reject(feedback_id, reason="rejected via streamlit-ui"))
-        st.rerun()
+    for column, (label, action) in zip(st.columns(len(actions)), actions.items(), strict=True):
+        if not column.button(label):
+            continue
+        if choice is None:
+            st.warning("Choose the feedback to review first; it may have been closed meanwhile.")
+            continue
+        try:
+            run(action(by_id[choice].feedback_id))
+        except FeedbackLifecycleError as error:
+            st.error(str(error))
+        else:
+            st.rerun()
 
 
-def render_feed(manager: FeedbackManager) -> None:
-    st.subheader("Feedback feed")
-    status_filter = st.selectbox(
-        "Filter by status", ["(all)", *[status.value for status in FeedbackStatus]]
-    )
+def feed(manager: FeedbackManager) -> None:
+    st.subheader("Feed")
+    status = st.selectbox("Status", ["all", *(status.value for status in FeedbackStatus)])
     query = FeedbackQuery(
-        status=None if status_filter == "(all)" else FeedbackStatus(status_filter)
+        status=None if status == "all" else FeedbackStatus(status), newest_first=True, limit=200
     )
-    events = _run(manager.query(query))
-
+    events = run(manager.query(query))
     if not events:
-        st.info("Nothing matches this filter yet.")
+        st.info("Nothing matches this filter.")
         return
-
-    rows = [
-        {
-            "feedback_id": str(event.feedback_id),
-            "status": event.status.value,
-            "source": str(event.source),
-            "category": str(event.category),
-            "target": f"{event.target.type}:{event.target.id}",
-            "payload": event.payload,
-            "created_at": event.created_at.isoformat(),
-        }
-        for event in events
-    ]
-    st.dataframe(rows, use_container_width=True)
+    st.dataframe(
+        [
+            {
+                "created": event.created_at.strftime("%Y-%m-%d %H:%M:%S"),
+                "status": event.status.value,
+                "source": str(event.source),
+                "category": str(event.category),
+                "target": f"{event.target.type}:{event.target.id}",
+                "payload": event.payload,
+            }
+            for event in events
+        ],
+        width="stretch",
+    )
 
 
 def main() -> None:
-    st.set_page_config(page_title="feedback-manager -- live feedback capture", layout="wide")
-    st.title("feedback-manager: live feedback capture")
-    st.caption(
-        "Real FeedbackManager instance, backed by "
-        + (
-            "PostgreSQL (FEEDBACK_MANAGER_POSTGRES_DSN set)"
-            if os.environ.get("FEEDBACK_MANAGER_POSTGRES_DSN")
-            else "InMemoryFeedbackStore (set FEEDBACK_MANAGER_POSTGRES_DSN for real persistence)"
-        )
-    )
-    manager = get_manager()
-
-    render_submit_form(manager)
+    st.set_page_config(page_title="Feedback", layout="wide")
+    st.title("Feedback")
+    backend = "PostgreSQL store" if os.environ.get(DSN_VARIABLE) else "in-memory store"
+    st.caption(f"Backed by feedback-manager with the {backend}.")
+    manager = feedback_manager()
+    submit_form(manager)
     st.divider()
-    render_lifecycle_actions(manager)
+    lifecycle_actions(manager)
     st.divider()
-    render_feed(manager)
+    feed(manager)
 
 
 main()
