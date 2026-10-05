@@ -1,33 +1,39 @@
-"""Abstract contracts for feedback and lifecycle policy hooks."""
+"""Policy contracts: business rules on transitions, and redaction before storage."""
 
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from typing import TYPE_CHECKING
 
-from feedback_manager.core.events import FeedbackEvent
-from feedback_manager.core.status import FeedbackStatus
+if TYPE_CHECKING:
+    from feedback_manager.core.events import FeedbackEvent
+    from feedback_manager.core.status import FeedbackStatus
 
 
 class FeedbackLifecyclePolicy(ABC):
-    """Allows application code to add business rules on top of the base state machine.
+    """Adds business rules on top of the lifecycle state machine.
 
-    The base transition table in :mod:`feedback_manager.core.lifecycle`
-    encodes structural legality only. A ``FeedbackLifecyclePolicy`` can
-    reject an otherwise-legal transition for business reasons (e.g. "only
-    the original requester may resolve their own feedback").
+    The state machine only decides which moves are structurally legal. A
+    lifecycle policy can deny a legal move for business reasons, such as "only
+    a reviewer may resolve feedback". `FeedbackManager` asks the policy before
+    every transition and re-asks it if the event changed concurrently.
     """
 
     @abstractmethod
     def authorize_transition(self, feedback: FeedbackEvent, target: FeedbackStatus) -> None:
-        """Raise if the transition should not be allowed; return normally otherwise."""
+        """Allow a transition by returning normally.
+
+        Raises:
+            FeedbackLifecycleError: To deny moving ``feedback`` to ``target``.
+        """
 
 
-class FeedbackPolicy(ABC):
-    """General extension point for redaction/filtering before persistence or serialization."""
+class FeedbackRedactionPolicy(ABC):
+    """Removes or masks sensitive data before feedback is correlated and stored."""
 
     @abstractmethod
-    def apply(self, feedback: FeedbackEvent) -> FeedbackEvent:
-        """Return a (possibly modified) copy of ``feedback``."""
+    def redact(self, feedback: FeedbackEvent) -> FeedbackEvent:
+        """Return ``feedback`` itself, or a redacted copy of it."""
 
 
-__all__ = ["FeedbackLifecyclePolicy", "FeedbackPolicy"]
+__all__ = ["FeedbackLifecyclePolicy", "FeedbackRedactionPolicy"]

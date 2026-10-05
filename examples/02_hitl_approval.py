@@ -1,93 +1,72 @@
-"""Example 2 -- HITL approval via LangGraph interrupt/resume.
+"""Record a human-in-the-loop approval around a native LangGraph interrupt.
 
-Uses a real, compiled LangGraph graph. LangGraph owns pausing and resuming
-execution (``interrupt``/``Command(resume=...)``); FeedbackManager only
-manages the feedback record describing *why* execution paused and what a
-human decided.
+LangGraph pauses and resumes the graph. `HumanInTheLoopBridge` keeps a
+feedback record of why it paused and what the reviewer decided.
 
-Run with::
+Run with:
 
     uv run python examples/02_hitl_approval.py
 """
 
 import asyncio
-import os
-import selectors
-import sys
-from typing import Any, TypedDict
+from typing import Any, NotRequired, TypedDict
 
+from langchain_core.runnables import RunnableConfig
 from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.graph import END, START, StateGraph
+from langgraph.types import interrupt
 
 from feedback_manager import FeedbackManager, FeedbackTarget, FeedbackTargetType
-from feedback_manager.integrations.langgraph import HumanInTheLoopBridge, extract_interrupts
-
-
-async def _build_manager() -> FeedbackManager:
-    # Zero-config by default (in-memory store); set FEEDBACK_MANAGER_POSTGRES_DSN
-    # to run this exact scenario against the real PostgreSQL store instead --
-    # see docs/examples/grafana-observability.md.
-    dsn = os.environ.get("FEEDBACK_MANAGER_POSTGRES_DSN")
-    if not dsn:
-        return FeedbackManager()
-    from postgres_feedback_store import PostgresFeedbackStore
-
-    store = await PostgresFeedbackStore.connect(dsn)
-    return FeedbackManager(store=store)
-
-
-def _run(coro):
-    # psycopg's async mode needs a selector event loop; Windows defaults to
-    # the proactor loop, so only override it there.
-    if sys.platform == "win32":
-        return asyncio.run(
-            coro, loop_factory=lambda: asyncio.SelectorEventLoop(selectors.SelectSelector())
-        )
-    return asyncio.run(coro)
+from feedback_manager.integrations.langgraph import (
+    HumanInTheLoopBridge,
+    execution_context_from_snapshot,
+    extract_interrupts,
+)
 
 
 class State(TypedDict):
     action: str
+    decision: NotRequired[str]
 
 
-async def send_email_node(state: State) -> State:
-    decision = HumanInTheLoopBridge.interrupt(
-        {"question": "Approve sending this email to the customer?", "action": state["action"]}
-    )
-    return {"action": f"{state['action']} ({decision})"}
+def confirm(state: State) -> State:
+    decision = interrupt({"question": "Send the refund email?", "action": state["action"]})
+    return {"action": state["action"], "decision": decision}
 
 
 def build_graph() -> Any:
-    graph = StateGraph(State)
-    graph.add_node("send_email", send_email_node)
-    graph.add_edge(START, "send_email")
-    graph.add_edge("send_email", END)
-    return graph.compile(checkpointer=InMemorySaver())
+    builder = StateGraph(State)
+    builder.add_node("confirm", confirm)
+    builder.add_edge(START, "confirm")
+    builder.add_edge("confirm", END)
+    return builder.compile(checkpointer=InMemorySaver())
 
 
 async def main() -> None:
-    manager = await _build_manager()
+    manager = FeedbackManager()
     bridge = HumanInTheLoopBridge(manager)
-    compiled = build_graph()
-    config = {"configurable": {"thread_id": "hitl-example-1"}}
+    graph = build_graph()
+    config: RunnableConfig = {"configurable": {"thread_id": "refund-1042"}}
 
-    paused = await compiled.ainvoke({"action": "send_refund_email"}, config=config)
-    interrupts = extract_interrupts(paused)
-    prompt = interrupts[0].value
-    print(f"Graph paused, asking a human: {prompt}")
+    paused = await graph.ainvoke({"action": "send_refund_email"}, config)
+    (pending,) = extract_interrupts(paused)
+    snapshot = await graph.aget_state(config)
 
-    feedback = await bridge.request(
-        target=FeedbackTarget(type=FeedbackTargetType.GRAPH, id="hitl-example-1"), prompt=prompt
+    request = await bridge.request(
+        target=FeedbackTarget(type=FeedbackTargetType.NODE, id="confirm"),
+        interrupt=pending,
+        execution_context=execution_context_from_snapshot(snapshot),
     )
-    print(f"Feedback request recorded: id={feedback.feedback_id} status={feedback.status}")
+    print(f"Graph paused; approval request {request.feedback_id} is {request.status}")
+    print(f"Prompt shown to the reviewer: {request.payload['prompt']}")
 
-    # ... a human approves in your application's UI ...
-    resolved = await bridge.resolve(feedback.feedback_id, response="approved", approved=True)
-    print(f"Human decision recorded: status={resolved.status}")
+    # The reviewer approves in your application's UI.
+    decision = await bridge.resolve(request.feedback_id, response="approved", approved=True)
+    print(f"Decision recorded: {decision.status}, resolution={decision.resolution}")
 
-    result = await compiled.ainvoke(bridge.resume_command("approved"), config=config)
+    result = await graph.ainvoke(bridge.resume_command("approved"), config)
     print(f"Graph resumed and finished: {result}")
 
 
 if __name__ == "__main__":
-    _run(main())
+    asyncio.run(main())

@@ -1,75 +1,75 @@
-"""Example 3 -- Tool failure and timeout feedback.
+"""Turn a tool timeout inside a LangGraph agent into one feedback event, automatically.
 
-A LangChain tool times out; a LangChain callback handler translates that
-into feedback automatically, without the application needing to catch the
-exception itself.
+`FeedbackCallbackHandler` uses LangChain's callback system: the application
+keeps handling the exception as usual, and the failure is recorded once, with
+the thread, node, and tool call it happened in.
 
-Run with::
+Run with:
 
     uv run python examples/03_tool_failure.py
 """
 
 import asyncio
-import os
-import selectors
-import sys
+from typing import Any, TypedDict
 
+from langchain_core.messages import AIMessage, AnyMessage
+from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import tool
+from langgraph.graph import END, START, StateGraph
+from langgraph.prebuilt import ToolNode
 
-from feedback_manager import FeedbackEvent, FeedbackManager
+from feedback_manager import FeedbackManager
 from feedback_manager.integrations.langchain import FeedbackCallbackHandler
+
+
+class State(TypedDict):
+    messages: list[AnyMessage]
 
 
 @tool
 async def fetch_weather(city: str) -> str:
-    """Look up the weather for a city (simulated to always time out)."""
-    raise TimeoutError(f"weather service timed out looking up {city!r}")
+    """Look up the weather for a city."""
+    raise TimeoutError(f"weather service did not answer for {city!r} within 5 seconds")
 
 
-async def _build_manager() -> FeedbackManager:
-    # Zero-config by default (in-memory store); set FEEDBACK_MANAGER_POSTGRES_DSN
-    # to run this exact scenario against the real PostgreSQL store instead --
-    # see docs/examples/grafana-observability.md.
-    dsn = os.environ.get("FEEDBACK_MANAGER_POSTGRES_DSN")
-    if not dsn:
-        return FeedbackManager()
-    from postgres_feedback_store import PostgresFeedbackStore
-
-    store = await PostgresFeedbackStore.connect(dsn)
-    return FeedbackManager(store=store)
+def plan(state: State) -> State:
+    """Stands in for a model call that decides to use the weather tool."""
+    call = {"name": "fetch_weather", "args": {"city": "Canberra"}, "id": "call-weather-1"}
+    return {"messages": [AIMessage(content="", tool_calls=[call])]}
 
 
-def _run(coro):
-    # psycopg's async mode needs a selector event loop; Windows defaults to
-    # the proactor loop, so only override it there.
-    if sys.platform == "win32":
-        return asyncio.run(
-            coro, loop_factory=lambda: asyncio.SelectorEventLoop(selectors.SelectSelector())
-        )
-    return asyncio.run(coro)
+def build_graph() -> Any:
+    builder = StateGraph(State)
+    builder.add_node("plan", plan)
+    builder.add_node("tools", ToolNode([fetch_weather], handle_tool_errors=False))
+    builder.add_edge(START, "plan")
+    builder.add_edge("plan", "tools")
+    builder.add_edge("tools", END)
+    return builder.compile()
 
 
 async def main() -> None:
-    manager = await _build_manager()
-
-    async def print_feedback(feedback: FeedbackEvent) -> None:
-        print(
-            f"Feedback captured: source={feedback.source} category={feedback.category} "
-            f"payload={feedback.payload}"
-        )
-
-    manager.subscribe(print_feedback)
-    handler = FeedbackCallbackHandler(manager)
+    manager = FeedbackManager()
+    config: RunnableConfig = {
+        "callbacks": [FeedbackCallbackHandler(manager)],
+        "configurable": {"thread_id": "weather-chat-3"},
+    }
 
     try:
-        await fetch_weather.ainvoke({"city": "Canberra"}, config={"callbacks": [handler]})
-    except TimeoutError:
-        print("Tool call failed -- application handles the exception as usual;")
-        print("FeedbackManager has already recorded it independently.")
+        await build_graph().ainvoke({"messages": []}, config)
+    except TimeoutError as error:
+        print(f"The agent failed as usual: {error}")
 
-    events = await manager.list()
-    print(f"Total feedback events recorded: {len(events)}")
+    for event in await manager.query():
+        context = event.execution_context
+        assert context is not None
+        print(
+            f"Recorded {event.source}/{event.category} feedback about "
+            f"{event.target.type} {event.target.id!r} "
+            f"(thread={context.thread_id}, node={context.node_id})"
+        )
+        print(f"  payload: {event.payload}")
 
 
 if __name__ == "__main__":
-    _run(main())
+    asyncio.run(main())

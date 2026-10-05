@@ -1,30 +1,43 @@
-"""Internal ``structlog`` wiring shared by the bundled logging sinks/handlers.
+"""Internal ``structlog`` wiring for the package's log output.
 
-Library code must not call ``structlog.configure()`` globally -- that is an
-application-level decision. Each logger created here instead wraps the
-equivalent stdlib :class:`logging.Logger` directly via
-:func:`structlog.wrap_logger`, so host applications that configure Python's
-standard ``logging`` module (handlers, filters, levels, ``caplog`` in tests,
-...) continue to see feedback-manager's structured log output without any
-extra wiring.
+Library code must not call ``structlog.configure()``: that is an application
+decision. Each logger here wraps the standard-library logger of the same name,
+so applications that configure ``logging`` (handlers, levels, filters, pytest's
+``caplog``) receive feedback-manager's structured messages with no extra setup.
+Disabled levels are dropped before any rendering work, and ``exc_info`` is
+handed to the standard-library logger, which formats tracebacks as usual.
 """
 
 from __future__ import annotations
 
 import logging
-from typing import Any
+from typing import TYPE_CHECKING, Any, cast
 
 import structlog
 
+if TYPE_CHECKING:
+    from collections.abc import MutableMapping
 
-def get_logger(name: str) -> Any:
-    """Return a ``structlog`` logger bound to the stdlib logger named ``name``."""
-    return structlog.wrap_logger(
-        logging.getLogger(name),
-        processors=[
-            structlog.stdlib.add_log_level,
-            structlog.processors.KeyValueRenderer(key_order=["event"]),
-        ],
+_RENDERER = structlog.processors.KeyValueRenderer(key_order=["event"])
+
+
+def _render(
+    logger: Any, method_name: str, event_dict: MutableMapping[str, Any]
+) -> tuple[tuple[str], dict[str, Any]]:
+    exc_info = event_dict.pop("exc_info", None)
+    message = _RENDERER(logger, method_name, event_dict)
+    return (message,), ({"exc_info": exc_info} if exc_info is not None else {})
+
+
+def get_logger(name: str) -> structlog.stdlib.BoundLogger:
+    """Return a ``structlog`` logger that writes to the standard-library logger ``name``."""
+    return cast(
+        "structlog.stdlib.BoundLogger",
+        structlog.wrap_logger(
+            logging.getLogger(name),
+            wrapper_class=structlog.stdlib.BoundLogger,
+            processors=[structlog.stdlib.filter_by_level, _render],
+        ),
     )
 
 

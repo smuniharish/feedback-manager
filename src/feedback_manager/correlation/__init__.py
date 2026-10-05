@@ -1,5 +1,8 @@
-"""Default correlation derivation for feedback events."""
+"""Correlation: grouping related feedback."""
 
-from feedback_manager.correlation.correlator import DefaultFeedbackCorrelator
+from feedback_manager.correlation.correlator import (
+    DefaultFeedbackCorrelator,
+    default_correlation_id,
+)
 
-__all__ = ["DefaultFeedbackCorrelator"]
+__all__ = ["DefaultFeedbackCorrelator", "default_correlation_id"]

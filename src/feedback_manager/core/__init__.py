@@ -1,7 +1,8 @@
-"""Framework-independent feedback domain model."""
+"""The framework-independent feedback domain model."""
 
+from feedback_manager.core._types import Identifier, JsonObject
 from feedback_manager.core.categories import FeedbackCategory
-from feedback_manager.core.context import CorrelationContext, ExecutionContext
+from feedback_manager.core.context import ExecutionContext
 from feedback_manager.core.events import FeedbackEvent
 from feedback_manager.core.lifecycle import (
     LEGAL_TRANSITIONS,
@@ -17,7 +18,6 @@ from feedback_manager.core.targets import FeedbackTarget, FeedbackTargetType
 __all__ = [
     "LEGAL_TRANSITIONS",
     "TERMINAL_STATUSES",
-    "CorrelationContext",
     "ExecutionContext",
     "FeedbackCategory",
     "FeedbackEvent",
@@ -26,6 +26,8 @@ __all__ = [
     "FeedbackStatus",
     "FeedbackTarget",
     "FeedbackTargetType",
+    "Identifier",
+    "JsonObject",
     "LifecycleTransition",
     "is_legal_transition",
     "validate_transition",

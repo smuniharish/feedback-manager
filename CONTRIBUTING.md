@@ -1,85 +1,107 @@
-# Contributing to feedback-manager
+# Contributing
 
-Thank you for your interest in improving `feedback-manager`. This project is
-a focused feedback-infrastructure library for LangChain/LangGraph
-applications — see [README.md](README.md) and
-[docs/architecture/ARCHITECTURE.md](docs/architecture/ARCHITECTURE.md) for
-what it is (and deliberately is not) before proposing larger changes.
+Thank you for improving `feedback-manager`. Contributions should keep its
+focus: feedback infrastructure for LangChain and LangGraph applications, not a
+graph runtime, a tracing platform, or a user interface. The
+[design overview](https://feedback-manager.readthedocs.io/en/latest/design/)
+explains the principles changes are measured against.
 
-## Ground rules
+## Before opening a change
 
-- **Reuse before reinventing.** Before adding infrastructure, check whether
-  LangGraph, LangChain, or `langgraph-xai` already provide it. Custom code
-  in this repository must stay focused on the feedback-management domain
-  (see [docs/architecture/RESPONSIBILITY_MATRIX.md](docs/architecture/RESPONSIBILITY_MATRIX.md)).
-- **Small, stable public API.** Changes to `feedback_manager/__init__.py`'s
-  `__all__` are a big deal — discuss in an issue first.
-- **Extension points are ABC/Protocol contracts**, not ad-hoc hooks. New
-  extensibility should fit the existing pattern in `contracts/`.
-- **No hidden global state.** Every `FeedbackManager` instance must remain
-  fully independent (see Section 29 of the original design spec).
+1. Open an issue first for changes to the public API, the domain model, the
+   lifecycle, the store contract, or an integration.
+2. Keep each change focused, with tests and documentation for anything a user
+   can observe.
 
 ## Development setup
 
-This project uses [`uv`](https://github.com/astral-sh/uv) and Python 3.12.
+Python 3.12 or later and [uv](https://docs.astral.sh/uv/) are required.
 
 ```bash
-git clone https://github.com/samamuniharish/feedback-manager.git
+git clone https://github.com/smuniharish/feedback-manager.git
 cd feedback-manager
-uv sync --all-extras
+uv sync --all-groups
 ```
 
-## Running checks locally
+## Checks
 
 ```bash
-uv run ruff check src tests examples
-uv run ruff format --check src tests examples
-uv run mypy src
-uv run pytest tests -q
-uv run coverage run -m pytest tests -q && uv run coverage report
+uv run ruff check .
+uv run ruff format --check .
+uv run pyrefly check
+uv run pytest --cov
+```
+
+The default test run needs no services or API keys, and line and branch
+coverage are kept at 100%. Property-based tests use
+[Hypothesis](https://hypothesis.readthedocs.io/); set
+`HYPOTHESIS_PROFILE=thorough` to run more examples locally, or `ci` as the
+continuous integration does.
+
+The PostgreSQL store tests run when `FEEDBACK_MANAGER_TEST_POSTGRES_DSN` points
+at a database; each test creates and drops its own table:
+
+```bash
+docker compose -f examples/compose.yaml up -d postgres
+FEEDBACK_MANAGER_TEST_POSTGRES_DSN=postgresql://feedback:feedback@localhost:5432/feedback \
+    uv run pytest -m postgres
+```
+
+Never commit credentials, local environments, or generated reports.
+
+## Documentation and diagrams
+
+```bash
 uv run mkdocs build --strict
 ```
 
-All of the above must pass before opening a pull request. CI runs the same
-checks on Python 3.12.
+The documentation embeds the example sources, so a changed example changes its
+page. Diagrams are Mermaid sources under `diagrams/`, rendered to PNG with
+Mermaid CLI 12.0.0. Install it globally; it needs Node.js 22.13 or later.
+`--allow-scripts=puppeteer` lets Puppeteer download the headless browser the
+CLI renders with:
 
-## Testing philosophy
+```bash
+npm install --global --allow-scripts=puppeteer @mermaid-js/mermaid-cli@12.0.0
+node scripts/render-diagrams.mjs
+node scripts/render-diagrams.mjs --check
+```
 
-- **Unit tests** (`tests/unit/`) exercise domain models, contracts, and
-  reference implementations in isolation.
-- **Concurrency tests** (`tests/concurrency/`) exercise concurrent
-  submission, lifecycle transitions, subscribers, and shutdown/cancellation
-  using standard `asyncio` primitives.
-- **Integration tests** (`tests/integration/`) exercise real installed
-  `langchain`, `langgraph`, and `langgraph-xai` — they must not mock these
-  frameworks. If you add an integration, add a real-dependency test for it.
+Commit a changed diagram source together with its rendered image and the
+updated `docs/assets/diagrams/manifest.json`.
 
-## Submitting changes
+The site uses MkDocs 1.6 with Material for MkDocs 9.7, which is in maintenance
+mode until 2027-05-05. Plan the move to its successor,
+[Zensical](https://zensical.org/), before then.
 
-1. Open an issue first for anything beyond a small fix, especially anything
-   touching the public API, domain model, or lifecycle state machine.
-2. Keep changes surgical and scoped; avoid unrelated refactors in the same
-   PR.
-3. Add or update tests and documentation for any behavioral change.
-4. Ensure `CHANGELOG.md` has an entry under `[Unreleased]`.
-5. Follow the existing code style (`ruff format`) and typing discipline
-   (`mypy --strict` on `src`).
+## Pull requests
 
-## Reporting bugs
+- Describe the user-visible impact.
+- Add or update tests for every behavior change.
+- Update the affected documentation pages and the changelog.
+- Make sure formatting, lint, type checks, tests, the strict docs build, and
+  the diagram check pass.
 
-Please include:
+## Releases
 
-- `feedback-manager`, `langchain`, `langgraph`, and `langgraph-xai`
-  versions (`uv pip list` or `pip list`).
-- A minimal reproduction.
-- Expected vs. actual behavior.
+Releases follow [semantic versioning](https://semver.org/). To publish one:
 
-## Security issues
+1. Set the version in `pyproject.toml` and the Agent Skill's
+   `metadata.version` in
+   `feedback-manager-skills/skills/feedback-manager/SKILL.md`, then run
+   `uv lock`. A test fails until the two versions match.
+2. Move the changelog entries under a heading with the version and date.
+3. Merge to `master`, then publish a GitHub release whose tag is the version
+   with a `v` prefix, such as `v0.1.1`.
 
-Do not open a public issue for security vulnerabilities — see
-[SECURITY.md](SECURITY.md).
+The release workflow checks that the tag matches the version, builds and checks
+the distributions, and publishes them to PyPI with trusted publishing, so no
+API token is stored in the repository. Before the first release from the
+workflow, a maintainer adds it as a trusted publisher in the PyPI project
+settings (repository `smuniharish/feedback-manager`, workflow `release.yml`,
+environment `pypi`).
 
-## Code of conduct
+## Security reports
 
-Be respectful and constructive. Maintain a professional, collaborative
-tone in issues, discussions, and pull requests.
+Do not report vulnerabilities in public issues. Follow the
+[security policy](https://github.com/smuniharish/feedback-manager/blob/master/SECURITY.md).

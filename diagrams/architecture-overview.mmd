@@ -1,0 +1,29 @@
+flowchart TB
+    subgraph app["Your application"]
+        code["Application code"]
+        runnable["LangGraph graph or<br/>LangChain runnable"]
+    end
+
+    subgraph integrations["feedback_manager.integrations"]
+        callbacks["FeedbackCallbackHandler<br/>capture_tool_feedback"]
+        hitl["HumanInTheLoopBridge"]
+    end
+
+    manager["<b>FeedbackManager</b><br/>validates, redacts, correlates,<br/>links provenance, runs the lifecycle"]
+    xai["langgraph-xai<br/>XAIRuntime"]
+
+    store[("FeedbackStore")]
+    handlers["Router and handlers"]
+    push["Subscribers and streams"]
+    sink["Observability sink"]
+
+    code -- "submit · lifecycle · query" --> manager
+    runnable -- "failures" --> callbacks
+    runnable -- "interrupts" --> hitl
+    callbacks --> manager
+    hitl --> manager
+    xai -. "run records" .-> manager
+    manager --> store
+    manager --> handlers
+    manager --> push
+    manager -.-> sink

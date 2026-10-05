@@ -1,94 +1,166 @@
-"""Unit tests for failure isolation and retention policies."""
+"""Failure isolation and retention policies."""
 
 from __future__ import annotations
 
+import logging
 from datetime import UTC, datetime, timedelta
+from uuid import uuid4
 
 import pytest
 
-from feedback_manager.core import (
-    FeedbackCategory,
+from feedback_manager import (
     FeedbackEvent,
-    FeedbackSource,
     FeedbackStatus,
     FeedbackTarget,
-    FeedbackTargetType,
+    FeedbackValidationError,
 )
-from feedback_manager.policies.failure import FailureMode, FailurePolicy, FeedbackStage
-from feedback_manager.policies.retention import RetentionPolicy
+from feedback_manager.errors import (
+    FeedbackConfigurationError,
+    FeedbackCorrelationError,
+    FeedbackHandlerError,
+    FeedbackManagerError,
+    FeedbackRoutingError,
+    FeedbackSubscriberError,
+)
+from feedback_manager.policies import FailureMode, FailurePolicy, FeedbackStage, RetentionPolicy
+from tests.strategies import NAIVE
 
 
-class _Boom(Exception):
+class BoomError(Exception):
     pass
 
 
-async def _raise() -> None:
-    raise _Boom("nope")
+async def _fail() -> None:
+    raise BoomError("exploded")
 
 
-async def test_best_effort_stage_swallows_and_returns_none() -> None:
-    policy = FailurePolicy()
-    result = await policy.run_stage(FeedbackStage.HANDLER, _raise)
-    assert result is None
+async def _succeed() -> str:
+    return "ok"
 
 
-async def test_blocking_stage_reraises() -> None:
-    policy = FailurePolicy()
-    with pytest.raises(_Boom):
-        await policy.run_stage(FeedbackStage.STORE, _raise)
+class TestFailurePolicy:
+    def test_every_stage_defaults_to_best_effort(self) -> None:
+        policy = FailurePolicy()
 
+        assert dict(policy.modes) == dict.fromkeys(FeedbackStage, FailureMode.BEST_EFFORT)
 
-async def test_on_error_callback_invoked_for_best_effort() -> None:
-    policy = FailurePolicy()
-    captured: list[tuple[FeedbackStage, BaseException]] = []
-    await policy.run_stage(
-        FeedbackStage.SUBSCRIBER, _raise, on_error=lambda stage, exc: captured.append((stage, exc))
+    def test_overrides_merge_with_defaults_and_accept_strings(self) -> None:
+        policy = FailurePolicy(modes={"handler": "blocking"})  # type: ignore[dict-item]
+
+        assert policy.mode_for(FeedbackStage.HANDLER) is FailureMode.BLOCKING
+        assert policy.mode_for(FeedbackStage.ROUTING) is FailureMode.BEST_EFFORT
+        with pytest.raises(TypeError):
+            policy.modes[FeedbackStage.ROUTING] = FailureMode.BLOCKING  # type: ignore[index]
+
+    @pytest.mark.parametrize("modes", [{"store": "blocking"}, {FeedbackStage.HANDLER: "fatal"}])
+    def test_invalid_entries_are_configuration_errors(self, modes: dict[object, object]) -> None:
+        with pytest.raises(FeedbackConfigurationError, match="invalid failure policy entry"):
+            FailurePolicy(modes=modes)  # type: ignore[arg-type]
+
+    async def test_success_returns_the_result(self) -> None:
+        assert await FailurePolicy().run_stage(FeedbackStage.HANDLER, _succeed) == "ok"
+
+    async def test_best_effort_logs_with_traceback_and_returns_none(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        seen: list[tuple[FeedbackStage, Exception]] = []
+        feedback_id = uuid4()
+
+        with caplog.at_level(logging.WARNING, logger="feedback_manager.policies.failure"):
+            result = await FailurePolicy().run_stage(
+                FeedbackStage.SUBSCRIBER,
+                _fail,
+                feedback_id=feedback_id,
+                on_error=lambda stage, exc: seen.append((stage, exc)),
+            )
+
+        assert result is None
+        assert [(stage, type(exc)) for stage, exc in seen] == [
+            (FeedbackStage.SUBSCRIBER, BoomError)
+        ]
+        (record,) = caplog.records
+        assert "stage='subscriber'" in record.getMessage()
+        assert str(feedback_id) in record.getMessage()
+        assert record.exc_info is not None
+        assert record.exc_info[0] is BoomError
+
+    async def test_best_effort_without_feedback_id(self, caplog: pytest.LogCaptureFixture) -> None:
+        with caplog.at_level(logging.WARNING, logger="feedback_manager.policies.failure"):
+            await FailurePolicy().run_stage(FeedbackStage.ROUTING, _fail)
+
+        assert "feedback_id=None" in caplog.text
+
+    @pytest.mark.parametrize(
+        ("stage", "error_type"),
+        [
+            (FeedbackStage.CORRELATION, FeedbackCorrelationError),
+            (FeedbackStage.PROVENANCE, FeedbackCorrelationError),
+            (FeedbackStage.ROUTING, FeedbackRoutingError),
+            (FeedbackStage.HANDLER, FeedbackHandlerError),
+            (FeedbackStage.SUBSCRIBER, FeedbackSubscriberError),
+        ],
     )
-    assert len(captured) == 1
-    assert captured[0][0] == FeedbackStage.SUBSCRIBER
-    assert isinstance(captured[0][1], _Boom)
+    async def test_blocking_wraps_the_failure_in_the_stage_error(
+        self, stage: FeedbackStage, error_type: type[FeedbackManagerError]
+    ) -> None:
+        seen: list[Exception] = []
+        policy = FailurePolicy(modes={stage: FailureMode.BLOCKING})
+
+        with pytest.raises(error_type) as raised:
+            await policy.run_stage(stage, _fail, on_error=lambda _, exc: seen.append(exc))
+
+        assert isinstance(raised.value.__cause__, BoomError)
+        assert raised.value.context == {"stage": stage.value}
+        assert len(seen) == 1
 
 
-async def test_on_error_callback_invoked_before_reraise_for_blocking() -> None:
-    policy = FailurePolicy()
-    captured: list[BaseException] = []
-    with pytest.raises(_Boom):
-        await policy.run_stage(
-            FeedbackStage.SERIALIZATION, _raise, on_error=lambda stage, exc: captured.append(exc)
-        )
-    assert len(captured) == 1
-
-
-def test_mode_override_per_stage() -> None:
-    policy = FailurePolicy(modes={FeedbackStage.HANDLER: FailureMode.BLOCKING})
-    assert policy.mode_for(FeedbackStage.HANDLER) is FailureMode.BLOCKING
-    assert policy.mode_for(FeedbackStage.ROUTING) is FailureMode.BEST_EFFORT
-
-
-def _event(created_at: datetime) -> FeedbackEvent:
+def _event(status: FeedbackStatus, created_at: datetime) -> FeedbackEvent:
     return FeedbackEvent(
-        source=FeedbackSource.HUMAN,
-        category=FeedbackCategory.CORRECTION,
-        target=FeedbackTarget(type=FeedbackTargetType.GENERATION, id="gen-1"),
+        source="human",
+        category="comment",
+        target=FeedbackTarget(type="generation", id="gen-1"),
+        status=status,
         created_at=created_at,
     )
 
 
-def test_retention_policy_expires_old_events() -> None:
-    policy = RetentionPolicy(max_pending_age=timedelta(days=1))
-    old_event = _event(datetime.now(UTC) - timedelta(days=2))
-    fresh_event = _event(datetime.now(UTC))
-    assert policy.is_expired(old_event) is True
-    assert policy.is_expired(fresh_event) is False
+class TestRetentionPolicy:
+    NOW = datetime(2026, 10, 1, tzinfo=UTC)
 
+    @pytest.mark.parametrize("age", [timedelta(0), timedelta(seconds=-1)])
+    def test_max_pending_age_must_be_positive(self, age: timedelta) -> None:
+        with pytest.raises(FeedbackConfigurationError):
+            RetentionPolicy(max_pending_age=age)
 
-def test_retention_policy_ignores_terminal_events() -> None:
-    policy = RetentionPolicy(max_pending_age=timedelta(days=1))
-    old_event = _event(datetime.now(UTC) - timedelta(days=2)).with_status(FeedbackStatus.RESOLVED)
-    assert policy.is_expired(old_event) is False
+    def test_cutoff(self) -> None:
+        policy = RetentionPolicy(max_pending_age=timedelta(days=1))
 
+        assert policy.cutoff(self.NOW) == self.NOW - timedelta(days=1)
+        assert policy.cutoff() <= datetime.now(UTC) - timedelta(days=1)
+        with pytest.raises(FeedbackValidationError, match="timezone-aware"):
+            policy.cutoff(NAIVE)
 
-def test_retention_policy_without_max_age_never_expires() -> None:
-    policy = RetentionPolicy()
-    old_event = _event(datetime.now(UTC) - timedelta(days=3650))
-    assert policy.is_expired(old_event) is False
+    @pytest.mark.parametrize(
+        ("status", "expected"),
+        [
+            (FeedbackStatus.CREATED, True),
+            (FeedbackStatus.RECEIVED, True),
+            (FeedbackStatus.ACKNOWLEDGED, True),
+            (FeedbackStatus.HANDLED, False),
+            (FeedbackStatus.RESOLVED, False),
+            (FeedbackStatus.EXPIRED, False),
+        ],
+    )
+    def test_only_expirable_statuses_expire(self, status: FeedbackStatus, expected: bool) -> None:
+        policy = RetentionPolicy(max_pending_age=timedelta(days=1))
+        old = _event(status, self.NOW - timedelta(days=2))
+
+        assert policy.is_expired(old, now=self.NOW) is expected
+
+    def test_recent_events_do_not_expire(self) -> None:
+        policy = RetentionPolicy(max_pending_age=timedelta(days=1))
+        fresh = _event(FeedbackStatus.RECEIVED, self.NOW - timedelta(hours=23))
+        boundary = _event(FeedbackStatus.RECEIVED, self.NOW - timedelta(days=1))
+
+        assert policy.is_expired(fresh, now=self.NOW) is False
+        assert policy.is_expired(boundary, now=self.NOW) is False

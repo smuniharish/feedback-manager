@@ -1,33 +1,37 @@
-"""Open, extensible identifier for who or what produced a piece of feedback.
-
-``FeedbackSource`` is intentionally a plain ``str`` subclass rather than a
-closed ``enum.Enum``: the well-known sources below are common cases, not an
-exhaustive list. Application code can construct ``FeedbackSource("custom")``
-for a source this package has never heard of, and it behaves exactly like
-any other string (equality, hashing, JSON/pydantic serialization) everywhere
-a ``FeedbackSource`` is expected.
-"""
+"""Who or what produced a piece of feedback."""
 
 from __future__ import annotations
 
 from typing import ClassVar
 
-from feedback_manager.core._open_value import OpenStringValue
+from feedback_manager.core._types import OpenStringValue
 
 
 class FeedbackSource(OpenStringValue):
-    """Identifies the origin of a :class:`~feedback_manager.core.events.FeedbackEvent`."""
+    """The origin of a `FeedbackEvent`: a person, a component, or an external system.
+
+    The constants are the well-known sources. Any other non-empty string is a
+    valid source too, for example ``FeedbackSource("mcp_server")``.
+    """
 
     __slots__ = ()
 
     HUMAN: ClassVar[FeedbackSource]
+    """A person, such as an end user or a reviewer."""
     AGENT: ClassVar[FeedbackSource]
+    """An agent or graph, reporting on its own execution."""
     GENERATION: ClassVar[FeedbackSource]
+    """A model generation, such as a failed or interrupted model call."""
     TOOL: ClassVar[FeedbackSource]
+    """A tool or retriever."""
     EVALUATOR: ClassVar[FeedbackSource]
+    """An automated evaluator, such as an LLM-as-judge or a rule-based checker."""
     APPLICATION: ClassVar[FeedbackSource]
+    """The host application's own code."""
     SYSTEM: ClassVar[FeedbackSource]
+    """Infrastructure, such as a human-in-the-loop request raised by the runtime."""
     EXTERNAL: ClassVar[FeedbackSource]
+    """A third-party system, such as a ticketing or monitoring tool."""
 
 
 FeedbackSource.HUMAN = FeedbackSource("human")

@@ -1,110 +1,146 @@
 site_name: feedback-manager
-site_description: Feedback infrastructure for LangChain/LangGraph applications
-site_url: https://feedback-manager.readthedocs.io
-repo_url: https://github.com/samamuniharish/feedback-manager
+site_description: >-
+  Feedback infrastructure for LangChain and LangGraph applications: capture,
+  correlate, store, route, and resolve feedback as a first-class concern.
+site_url: https://feedback-manager.readthedocs.io/en/latest/
+repo_name: smuniharish/feedback-manager
+repo_url: https://github.com/smuniharish/feedback-manager
+edit_uri: edit/master/docs/
+copyright: Released under the Apache License 2.0.
+
+watch:
+  - src
+  - examples
+
+validation:
+  omitted_files: warn
+  absolute_links: warn
+  unrecognized_links: warn
+  anchors: warn
+
 theme:
   name: material
   features:
-    - navigation.sections
-    - navigation.expand
+    - content.action.edit
+    - content.code.annotate
     - content.code.copy
+    - content.tabs.link
+    - navigation.footer
+    - navigation.indexes
+    - navigation.sections
+    - navigation.top
+    - search.highlight
+    - search.suggest
+    - toc.follow
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/weather-night
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to light mode
+  icon:
+    repo: fontawesome/brands/github
+
 plugins:
   - search
+  # Click a diagram or screenshot to open it full size, with zoom.
+  - glightbox
   - mkdocstrings:
       handlers:
         python:
-          paths:
-            - src
+          paths: [src]
           options:
-            show_root_heading: true
+            docstring_style: google
+            extensions:
+              - griffe_pydantic:
+                  schema: false
             show_source: false
+            show_root_heading: true
+            show_root_full_path: false
+            show_symbol_type_heading: true
+            show_symbol_type_toc: true
+            merge_init_into_class: true
+            separate_signature: true
+            show_signature_annotations: true
+            signature_crossrefs: true
+            members_order: source
+            heading_level: 3
+
 markdown_extensions:
   - admonition
-  - toc:
-      permalink: true
-  - pymdownx.superfences
+  - attr_list
+  - md_in_html
+  - pymdownx.details
+  - pymdownx.highlight:
+      anchor_linenums: true
   - pymdownx.inlinehilite
+  - pymdownx.snippets:
+      base_path: ["."]
+      check_paths: true
+  - pymdownx.superfences
   - pymdownx.tabbed:
       alternate_style: true
-  - pymdownx.snippets:
-      base_path:
-        - "."
-      check_paths: true
-      dedent_subsections: true
+  - tables
+  - toc:
+      permalink: true
+
 nav:
   - Home: index.md
-  - Agent Skills: agent-skills.md
   - Getting started:
       - Installation: getting-started/installation.md
       - Quickstart: getting-started/quickstart.md
+      - Configuration: getting-started/configuration.md
   - Concepts:
-      - Sources: concepts/sources.md
-      - Categories: concepts/categories.md
-      - Targets: concepts/targets.md
+      - Overview: concepts/index.md
+      - Feedback events: concepts/feedback-events.md
       - Lifecycle: concepts/lifecycle.md
       - Correlation: concepts/correlation.md
       - Provenance: concepts/provenance.md
-      - Routing: concepts/routing.md
-      - Handlers: concepts/handlers.md
-      - Stores: concepts/stores.md
-      - Subscriptions: concepts/subscriptions.md
-  - Framework guides:
-      - LangChain callbacks and tools: frameworks/langchain.md
-      - LangGraph human-in-the-loop: frameworks/langgraph.md
-  - API:
-      - Overview: api/index.md
-      - Package exports: api/package.md
-      - FeedbackManager: api/manager.md
-      - Contracts: api/contracts.md
-      - Framework helpers: api/framework-helpers.md
+      - Routing and handlers: concepts/routing.md
+      - Storage and queries: concepts/storage.md
+      - Subscriptions and streams: concepts/delivery.md
+      - Observability: concepts/observability.md
+  - How-to guides:
+      - Overview: how-to/index.md
+      - Record LangChain failures: how-to/langchain-failures.md
+      - Record human-in-the-loop decisions: how-to/langgraph-hitl.md
+      - Link feedback to provenance: how-to/xai-provenance.md
+      - Store feedback in your database: how-to/custom-store.md
+      - Route feedback to handlers: how-to/routing.md
+      - Configure failure isolation: how-to/failure-isolation.md
+      - Expire stale feedback: how-to/expire-feedback.md
+      - Test your integration: how-to/testing.md
   - Examples:
-      - Human correction: examples/human-correction.md
-      - HITL approval: examples/hitl-approval.md
-      - Tool failure: examples/tool-failure.md
-      - Generation interruption: examples/generation-interruption.md
-      - Evaluator feedback: examples/evaluator-feedback.md
-      - Provenance: examples/provenance.md
-      - Production examples:
-          - PostgreSQL-backed store: examples/postgres-store.md
-          - Human feedback capture UI (Streamlit): examples/streamlit-feedback-ui.md
-          - create_agent + real MCP tools: examples/agent-mcp-create-agent.md
-          - deepagents + real MCP + HITL: examples/agent-mcp-deepagents.md
-          - Overriding every default: examples/override-defaults.md
-          - Every source/category/target combination: examples/full-matrix.md
-          - Real Grafana observability: examples/grafana-observability.md
-  - Advanced:
-      - Custom store: advanced/custom-store.md
-      - Custom handler: advanced/custom-handler.md
-      - Custom router: advanced/custom-router.md
-      - Custom source/category: advanced/custom-source-category.md
-  - Reliability:
-      - Failure isolation: reliability/failure-isolation.md
-      - Idempotency: reliability/idempotency.md
-      - Concurrency: reliability/concurrency.md
-  - Security: security/index.md
-  - Testing: testing/index.md
-  - Architecture:
-      - Overview: architecture/ARCHITECTURE.md
-      - Responsibility matrix: architecture/RESPONSIBILITY_MATRIX.md
-      - Dependency matrix: architecture/DEPENDENCY_MATRIX.md
-      - Domain model: architecture/DOMAIN_MODEL.md
-      - Lifecycle model: architecture/LIFECYCLE.md
-      - Correlation model: architecture/CORRELATION_MODEL.md
-      - Provenance model: architecture/PROVENANCE_MODEL.md
-      - Routing model: architecture/ROUTING_MODEL.md
-      - Extensibility model: architecture/EXTENSIBILITY_MODEL.md
-      - Failure model: architecture/FAILURE_MODEL.md
-      - Concurrency model: architecture/CONCURRENCY_MODEL.md
-      - Framework boundary model: architecture/FRAMEWORK_BOUNDARY_MODEL.md
-      - API contract: architecture/API_CONTRACT.md
-      - Testing strategy: architecture/TESTING_STRATEGY.md
-      - Security model: architecture/SECURITY_MODEL.md
-      - ADRs:
-          - 0001 langgraph-xai mandatory dependency: architecture/adr/0001-langgraph-xai-mandatory-dependency.md
-          - 0002 reuse before reinventing: architecture/adr/0002-reuse-before-reinventing.md
-          - 0003 ABC vs Protocol contracts: architecture/adr/0003-abc-vs-protocol-contracts.md
-          - 0004 no self-improvement/runtime scope: architecture/adr/0004-no-self-improvement-or-agent-runtime-scope.md
-          - 0005 thin framework boundaries: architecture/adr/0005-thin-framework-boundaries.md
-          - 0006 abstract persistence: architecture/adr/0006-abstract-persistence.md
-          - 0007 explicit lifecycle state machine: architecture/adr/0007-explicit-lifecycle-state-machine.md
-  - FAQ: faq/index.md
+      - Overview: examples/index.md
+      - Basics: examples/basics.md
+      - Agents: examples/agents.md
+      - Production: examples/production.md
+  - API reference:
+      - Overview: api/index.md
+      - FeedbackManager: api/manager.md
+      - Domain model: api/models.md
+      - Contracts: api/contracts.md
+      - Routing and handlers: api/routing.md
+      - Policies: api/policies.md
+      - Observability: api/observability.md
+      - Integrations: api/integrations.md
+      - Errors: api/errors.md
+  - Operations:
+      - Security and data handling: operations/security.md
+      - Reliability: operations/reliability.md
+      - Troubleshooting: operations/troubleshooting.md
+  - Design overview: design.md
+  - Agent Skills: agent-skills.md
+  - FAQ: faq.md
+  - Development:
+      - Contributing: development/contributing.md
+      - Changelog: development/changelog.md

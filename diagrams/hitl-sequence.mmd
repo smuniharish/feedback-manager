@@ -1,0 +1,25 @@
+sequenceDiagram
+    autonumber
+    participant App as Application
+    participant G as Instrumented graph
+    participant X as langgraph-xai
+    participant B as HumanInTheLoopBridge
+    participant M as FeedbackManager
+    actor Rev as Reviewer
+
+    App->>G: ainvoke(input, config)
+    Note over G: a node calls interrupt(prompt)
+    G-)X: run paused: INTERRUPT interaction
+    G-->>App: result with __interrupt__
+    App->>G: aget_state(config)
+    G-->>App: snapshot (thread, run ID, interrupt)
+    App->>B: request(interrupt, execution_context_from_snapshot(...))
+    B->>M: submit(SYSTEM, REQUEST_FOR_HUMAN)
+    M->>X: provenance of the paused run
+    M-->>B: request feedback (RECEIVED)
+    Rev->>App: approve or reject
+    App->>B: resolve(feedback_id, response, approved)
+    B->>M: acknowledge, mark_handled, resolve or reject
+    App->>G: ainvoke(resume_command(response))
+    G-)X: resumed run: RESUME interaction, continuation_of
+    G-->>App: final result

@@ -1,0 +1,19 @@
+sequenceDiagram
+    autonumber
+    participant T as Tool
+    participant N as Graph node
+    participant G as Graph
+    participant H as FeedbackCallbackHandler
+    participant M as FeedbackManager
+
+    Note over H: on_*_start remembers each run's<br/>thread, node, tool call, and run ID
+    Note over T: raises TimeoutError
+    T->>H: on_tool_error(error)
+    H->>M: submit(TOOL, TIMEOUT, tool call) with context
+    T-->>N: error propagates
+    N->>H: on_chain_error(same error)
+    Note over H: already recorded<br/>for this run: skipped
+    N-->>G: error propagates
+    G->>H: on_chain_error(same error)
+    Note over H: skipped, and the run's<br/>state is cleared
+    Note over H: GraphInterrupt and other<br/>control flow: never recorded

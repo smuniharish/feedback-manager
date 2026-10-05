@@ -1,41 +1,35 @@
-"""Default correlation derivation."""
+"""The default correlation strategy."""
 
 from __future__ import annotations
 
-import uuid
+from typing import TYPE_CHECKING
 
-from feedback_manager.core.context import CorrelationContext, ExecutionContext
-from feedback_manager.core.events import FeedbackEvent
+if TYPE_CHECKING:
+    from feedback_manager.core.events import FeedbackEvent
+
+
+def default_correlation_id(feedback: FeedbackEvent) -> str:
+    """Return the most specific execution identifier of ``feedback``, or its own ID.
+
+    The first available of ``run_id``, ``thread_id``, and ``checkpoint_id``
+    wins, so feedback about the same run (or thread, or checkpoint) shares one
+    correlation ID. Feedback without execution context is its own group: its
+    correlation ID is its ``feedback_id``.
+    """
+    context = feedback.execution_context
+    if context is not None:
+        for candidate in (context.run_id, context.thread_id, context.checkpoint_id):
+            if candidate is not None:
+                return candidate
+    return str(feedback.feedback_id)
 
 
 class DefaultFeedbackCorrelator:
-    """Derives a :class:`CorrelationContext` from whatever context is available.
+    """Groups feedback by run, then thread, then checkpoint; see `default_correlation_id`."""
 
-    If ``execution_context`` carries a ``run_id``/``thread_id``, that is used
-    to build a stable ``correlation_id`` so that multiple feedback events
-    about the same execution can be queried together
-    (``FeedbackQuery(correlation_id=...)``). Otherwise a fresh random
-    correlation id is generated so every event is still individually
-    addressable.
-    """
-
-    async def correlate(
-        self, feedback: FeedbackEvent, execution_context: ExecutionContext | None
-    ) -> CorrelationContext:
-        correlation_id = self._derive_correlation_id(execution_context)
-        return CorrelationContext(correlation_id=correlation_id, execution=execution_context)
-
-    @staticmethod
-    def _derive_correlation_id(execution_context: ExecutionContext | None) -> str:
-        if execution_context is not None:
-            for candidate in (
-                execution_context.run_id,
-                execution_context.thread_id,
-                execution_context.checkpoint_id,
-            ):
-                if candidate:
-                    return candidate
-        return str(uuid.uuid4())
+    async def correlate(self, feedback: FeedbackEvent) -> str:
+        """Return the correlation ID for ``feedback``."""
+        return default_correlation_id(feedback)
 
 
-__all__ = ["DefaultFeedbackCorrelator"]
+__all__ = ["DefaultFeedbackCorrelator", "default_correlation_id"]

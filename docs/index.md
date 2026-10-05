@@ -1,43 +1,125 @@
 # feedback-manager
 
-`feedback-manager` is a production-grade Python library for treating feedback as a first-class domain concern in LangChain and LangGraph applications.
+**Feedback infrastructure for LangChain and LangGraph applications.**
 
-It gives you:
+Agent applications constantly receive feedback: a reviewer approves a refund, a
+user corrects an answer, a tool times out, an evaluator scores a response, a
+person stops a generation halfway. feedback-manager makes that feedback a
+first-class, queryable record. Each piece of feedback is captured with the
+execution it is about, grouped with related feedback, stored, routed to your
+handlers, and tracked through an explicit lifecycle until it is resolved.
 
-- a typed feedback event model
-- lifecycle management (`RECEIVED -> ACKNOWLEDGED -> HANDLED -> RESOLVED`)
-- correlation to runs, threads, checkpoints, nodes, tool calls, and generations
-- pluggable persistence, routing, handlers, policies, and observability
-- framework helpers for LangChain callbacks and LangGraph human-in-the-loop
-  flows
-- provenance correlation backed exclusively by the mandatory
-  `langgraph-xai` runtime
+LangChain and LangGraph keep owning execution, state, checkpoints, interrupts,
+and streaming. feedback-manager owns the feedback *about* that execution, and
+links it to the [langgraph-xai](https://github.com/smuniharish/langgraph-xai)
+provenance of the run it refers to.
 
-It does **not** give you:
+[![How feedback-manager fits into an application](assets/diagrams/architecture-overview.png)](assets/diagrams/architecture-overview.png)
 
-- an agent runtime
-- graph orchestration
-- an evaluator framework
-- a self-improvement engine
-- a replacement for LangGraph interrupts, checkpoints, or streaming
+## Why feedback-manager
 
-Use it when you need to capture human corrections, approvals, tool failures, evaluator scores, interruptions, and provenance-linked feedback around an existing LangChain/LangGraph system.
+<div class="grid cards" markdown>
 
-## Why it exists
+-   **One model for every kind of feedback**
 
-Agent applications often accumulate feedback in ad hoc ways:
+    ---
 
-- comments in a UI but no durable model
-- tool failures in logs but not queryable by run
-- approvals in LangGraph interrupts but not persisted as domain records
-- evaluator scores disconnected from the generation they refer to
+    Human corrections, approvals, tool failures, evaluator scores, and
+    interruptions share one immutable `FeedbackEvent`, with open sources,
+    categories, and target types you can extend without subclassing.
 
-`feedback-manager` centralizes those concerns without taking over runtime ownership from the frameworks that already do it well.
+-   **Captured where it happens**
 
-## Start here
+    ---
 
-- [Installation](getting-started/installation.md)
-- [Quickstart](getting-started/quickstart.md)
-- [Core concepts](concepts/sources.md)
-- [Architecture](architecture/ARCHITECTURE.md)
-- [Agent Skills](agent-skills.md)
+    A LangChain callback handler records tool, model, retriever, and chain
+    failures once, with the thread, node, and tool call they happened in. A
+    bridge records LangGraph human-in-the-loop requests and decisions.
+
+-   **An explicit, race-free lifecycle**
+
+    ---
+
+    Feedback moves through a validated state machine with compare-and-set
+    transitions: concurrent updates never overwrite each other, and every
+    change is published exactly once.
+
+-   **Linked to provenance**
+
+    ---
+
+    With a `langgraph-xai` runtime, feedback points at the run, node, tool
+    call, decision, and evidence it is about, so you can answer "what was this
+    feedback about, and why did the agent do that?"
+
+-   **Isolated from your failures**
+
+    ---
+
+    A failing handler, subscriber, router, or observability sink never loses
+    feedback. Choose per stage whether a failure is logged or raised.
+
+-   **Bring your own infrastructure**
+
+    ---
+
+    Swap the store, router, correlator, policies, and observability sink
+    through small, typed contracts. A production PostgreSQL store is included
+    as an example.
+
+</div>
+
+## A first look
+
+```python
+import asyncio
+
+from feedback_manager import FeedbackManager, FeedbackTarget, FeedbackTargetType
+
+
+async def main() -> None:
+    manager = FeedbackManager()
+    feedback = await manager.submit(
+        source="human",
+        category="correction",
+        target=FeedbackTarget(type=FeedbackTargetType.GENERATION, id="gen-42"),
+        payload={"corrected_text": "Canberra is the capital of Australia."},
+    )
+    print(feedback.status)  # received
+
+
+asyncio.run(main())
+```
+
+`FeedbackManager()` works without configuration: it keeps feedback in memory
+and logs one structured record per lifecycle event. Continue with the
+[quickstart](getting-started/quickstart.md), or jump to what you need:
+
+<div class="grid cards" markdown>
+
+-   [**Record LangChain failures**](how-to/langchain-failures.md)
+
+    Turn tool timeouts and model errors into feedback automatically.
+
+-   [**Record human-in-the-loop decisions**](how-to/langgraph-hitl.md)
+
+    Keep an auditable record of every LangGraph interrupt and its answer.
+
+-   [**Store feedback in your database**](how-to/custom-store.md)
+
+    Implement the four-method store contract, or adapt the PostgreSQL example.
+
+-   [**Explore the examples**](examples/index.md)
+
+    Runnable programs, from a single correction to a live Grafana dashboard.
+
+</div>
+
+## Requirements
+
+- Python 3.12 or later.
+- `langgraph`, `langgraph-xai`, `pydantic`, and `structlog`, installed
+  automatically. `langchain-core` comes with `langgraph`.
+
+feedback-manager is released under the
+[Apache License 2.0](https://github.com/smuniharish/feedback-manager/blob/master/LICENSE).

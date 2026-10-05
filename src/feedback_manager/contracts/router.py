@@ -1,27 +1,28 @@
-"""Abstract contract for routing feedback events to handlers."""
+"""The router contract: which handlers see an event."""
 
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from collections.abc import Sequence
+from typing import TYPE_CHECKING
 
-from feedback_manager.contracts.handler import FeedbackHandler
-from feedback_manager.core.events import FeedbackEvent
+if TYPE_CHECKING:
+    from collections.abc import Sequence
+
+    from feedback_manager.contracts.handler import FeedbackHandler
+    from feedback_manager.core.events import FeedbackEvent
 
 
 class FeedbackRouter(ABC):
-    """Decides which :class:`FeedbackHandler` instances should see an event.
+    """Selects the `FeedbackHandler` instances that should process an event.
 
-    Routing may consider any attribute of the event (source, category,
-    target, execution context, lifecycle status, metadata). Implementations
-    must be side-effect free -- routing only *selects* handlers, it does not
-    invoke them (that is the manager's job, so failures in one handler can be
-    isolated from others per the configured failure policy).
+    Routing may use any attribute of the event. It only selects handlers and
+    must not invoke them: `FeedbackManager` runs the selected handlers, so each
+    failure can be isolated according to the `FailurePolicy`.
     """
 
     @abstractmethod
     async def route(self, feedback: FeedbackEvent) -> Sequence[FeedbackHandler]:
-        """Return the ordered sequence of handlers that should process ``feedback``."""
+        """Return the handlers for ``feedback``, in the order they should run."""
 
 
 __all__ = ["FeedbackRouter"]

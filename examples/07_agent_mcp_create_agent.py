@@ -1,168 +1,105 @@
-"""Example 7 -- Real ``langchain.agents.create_agent`` + real MCP tools + feedback capture.
+"""Record feedback around a LangChain agent that uses real MCP tools.
 
-This is not a mock: it spins up two *real* Model Context Protocol servers as
-subprocesses (the reference filesystem server and the reference Playwright
-server, both via ``npx``), wires their tools into a real LangChain agent
-built with ``create_agent``, drives that agent with a real hosted LLM, and
-captures feedback about what happened during the run using nothing more
-than ``feedback_manager``'s existing LangChain integration (no bespoke
-agent/tool-tracing infrastructure -- see ``FeedbackCallbackHandler`` and
-``capture_tool_feedback``).
+Builds an agent with ``langchain.agents.create_agent`` and the tools of the
+reference filesystem MCP server, attaches `FeedbackCallbackHandler` so any tool
+or model failure is recorded automatically, and records an evaluator check of
+the agent's answer.
 
 Prerequisites:
-    - Node.js/``npx`` available on ``PATH``.
-    - ``EXPLABS_API_KEY`` set in the environment.
-    - ``uv sync --group examples`` (installs ``deepagents``,
-      ``langchain-mcp-adapters``, ``langchain-openai``, ...).
 
-Run with::
+- Node.js with ``npx``: the MCP server runs through
+  ``npx @modelcontextprotocol/server-filesystem``.
+- ``uv sync --group examples``.
+- A chat model for ``init_chat_model``: set ``FEEDBACK_MANAGER_EXAMPLE_MODEL`` to
+  a provider-prefixed model name such as ``openai:<model>``, and the provider's
+  credentials, such as ``OPENAI_API_KEY`` (plus ``OPENAI_BASE_URL`` for an
+  OpenAI-compatible endpoint).
+
+Run with:
 
     uv run python examples/07_agent_mcp_create_agent.py
 """
 
-from __future__ import annotations
-
 import asyncio
 import os
-import selectors
 import sys
 from pathlib import Path
 
 from langchain.agents import create_agent
+from langchain.chat_models import init_chat_model
+from langchain_core.messages import AIMessage
+from langchain_core.runnables import RunnableConfig
 from langchain_mcp_adapters.client import MultiServerMCPClient
-from langchain_openai import ChatOpenAI
+from langchain_mcp_adapters.sessions import StdioConnection
 
 from feedback_manager import (
     FeedbackCategory,
     FeedbackManager,
-    FeedbackQuery,
     FeedbackSource,
     FeedbackTarget,
     FeedbackTargetType,
 )
 from feedback_manager.integrations.langchain import FeedbackCallbackHandler
 
-WORKSPACE_DIR = Path(__file__).parent / "mcp_workspace"
+WORKSPACE = Path(__file__).parent / "mcp_workspace"
+MODEL_VARIABLE = "FEEDBACK_MANAGER_EXAMPLE_MODEL"
 
 
-async def _build_manager() -> FeedbackManager:
-    # Zero-config by default (in-memory store); set FEEDBACK_MANAGER_POSTGRES_DSN
-    # to run this exact scenario against the real PostgreSQL store instead --
-    # see docs/examples/grafana-observability.md.
-    dsn = os.environ.get("FEEDBACK_MANAGER_POSTGRES_DSN")
-    if not dsn:
-        return FeedbackManager()
-    from postgres_feedback_store import PostgresFeedbackStore
-
-    store = await PostgresFeedbackStore.connect(dsn)
-    return FeedbackManager(store=store)
-
-
-def _run(coro):
-    # psycopg's async mode needs a selector event loop; Windows defaults to
-    # the proactor loop, so only override it there.
+def npx(*arguments: str) -> StdioConnection:
+    """An MCP stdio server launched with npx (a batch shim on Windows, so run it via cmd)."""
     if sys.platform == "win32":
-        return asyncio.run(
-            coro, loop_factory=lambda: asyncio.SelectorEventLoop(selectors.SelectSelector())
-        )
-    return asyncio.run(coro)
-
-
-def _npx_command() -> str:
-    # On Windows, ``npx`` is a ``.ps1``/``.cmd`` shim that PowerShell's execution
-    # policy usually refuses to run directly as a subprocess; invoking it through
-    # the ``cmd`` shell (``cmd /c npx ...``) avoids that without changing the
-    # user's system-wide execution policy.
-    return "cmd" if sys.platform == "win32" else "npx"
-
-
-def _npx_args(*rest: str) -> list[str]:
-    if sys.platform == "win32":
-        return ["/c", "npx", *rest]
-    return list(rest)
-
-
-async def build_mcp_tools() -> list:
-    """Connect to the real filesystem + Playwright MCP servers and load their tools."""
-    client = MultiServerMCPClient(
-        {
-            "filesystem": {
-                "transport": "stdio",
-                "command": _npx_command(),
-                "args": _npx_args(
-                    "-y", "@modelcontextprotocol/server-filesystem", str(WORKSPACE_DIR)
-                ),
-            },
-            "playwright": {
-                "transport": "stdio",
-                "command": _npx_command(),
-                "args": _npx_args("-y", "@playwright/mcp@latest", "--headless"),
-            },
-        }
-    )
-    return await client.get_tools()
-
-
-def build_llm() -> ChatOpenAI:
-    return ChatOpenAI(
-        base_url=os.environ.get("EXPLABS_BASE_URL", "https://api.experientiallabs.ai/v1"),
-        api_key=os.environ["EXPLABS_API_KEY"],
-        model=os.environ.get("EXPLABS_MODEL", "gpt-5.6-luna"),
-    )
+        return {"transport": "stdio", "command": "cmd", "args": ["/c", "npx", *arguments]}
+    return {"transport": "stdio", "command": "npx", "args": list(arguments)}
 
 
 async def main() -> None:
-    manager = await _build_manager()
-    handler = FeedbackCallbackHandler(manager)
-
-    print("Connecting to real MCP servers (filesystem + playwright)...")
-    tools = await build_mcp_tools()
-    print(f"Loaded {len(tools)} real MCP tools: {[t.name for t in tools]}")
+    model = os.environ.get(MODEL_VARIABLE)
+    if not model:
+        sys.exit(f"Set {MODEL_VARIABLE} to a model for init_chat_model, such as openai:<model>.")
+    manager = FeedbackManager()
+    client = MultiServerMCPClient(
+        {"filesystem": npx("-y", "@modelcontextprotocol/server-filesystem", str(WORKSPACE))}
+    )
+    tools = await client.get_tools()
+    print(f"Loaded {len(tools)} MCP tools from the filesystem server")
 
     agent = create_agent(
-        model=build_llm(),
+        model=init_chat_model(model),
         tools=tools,
         system_prompt=(
-            "You are a release-notes assistant. Use the filesystem tool to read "
-            "release_notes.md and answer questions about it precisely and briefly."
+            f"You answer questions about the files in {WORKSPACE}. "
+            "Read files with the filesystem tools; answer in one sentence."
         ),
     )
+    question = "What is the known issue in release_notes.md?"
+    config: RunnableConfig = {
+        "callbacks": [FeedbackCallbackHandler(manager)],
+        "configurable": {"thread_id": "release-notes-qa"},
+    }
+    result = await agent.ainvoke({"messages": [{"role": "user", "content": question}]}, config)
+    messages = result["messages"]
+    tool_calls = [
+        call["name"]
+        for message in messages
+        if isinstance(message, AIMessage)
+        for call in message.tool_calls
+    ]
+    answer = messages[-1].text
+    print(f"Tools used: {tool_calls}")
+    print(f"Answer: {answer}")
 
-    question = (
-        "Read release_notes.md in the workspace and tell me, in one sentence, "
-        "what the known issue is."
-    )
-    print(f"\nRunning agent with real LLM + real MCP tools.\nQuestion: {question}\n")
-
-    result = await agent.ainvoke(
-        {"messages": [{"role": "user", "content": question}]},
-        config={"callbacks": [handler], "configurable": {"thread_id": "mcp-demo"}},
-    )
-    final_message = result["messages"][-1]
-    answer = final_message.content
-    print(f"Agent answer:\n{answer}\n")
-
-    # Quality-check the answer as an EVALUATOR-sourced feedback event -- this is
-    # exactly the kind of automated "did the agent actually do the task"
-    # feedback FeedbackManager is meant to carry, independent of any tool
-    # failures the callback handler above may already have recorded.
-    mentions_known_issue = "timeout" in answer.lower() or "export" in answer.lower()
+    passed = "export" in answer.lower()
     await manager.submit(
         source=FeedbackSource.EVALUATOR,
-        category=FeedbackCategory.QUALITY if mentions_known_issue else FeedbackCategory.UNCERTAINTY,
-        target=FeedbackTarget(type=FeedbackTargetType.RUN, id="mcp-demo"),
-        payload={
-            "check": "answer mentions the known issue from release_notes.md",
-            "passed": mentions_known_issue,
-            "answer": answer,
-        },
+        category=FeedbackCategory.QUALITY,
+        target=FeedbackTarget(type=FeedbackTargetType.THREAD, id="release-notes-qa"),
+        payload={"check": "mentions the /export known issue", "passed": passed, "answer": answer},
     )
-
-    events = await manager.query(FeedbackQuery())
-    print(f"\nFeedback events captured this run: {len(events)}")
-    for event in events:
-        print(f"  - source={event.source} category={event.category} status={event.status}")
+    for event in await manager.query():
+        print(
+            f"Feedback: {event.source}/{event.category} {event.feedback_type or ''} {event.payload}"
+        )
 
 
 if __name__ == "__main__":
-    _run(main())
+    asyncio.run(main())

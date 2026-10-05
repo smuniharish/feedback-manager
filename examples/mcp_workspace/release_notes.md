@@ -1,7 +1,10 @@
-# Release Notes
+# Release notes
 
 ## v0.3.0
-- Added PostgresFeedbackStore example.
-- Added Streamlit feedback capture UI.
-- The known issue with the /export endpoint occasionally timing out under heavy load was fixed in v0.4.0.
 
+- Added a PostgreSQL feedback store example.
+- Added a Streamlit feedback capture UI.
+
+### Known issues
+
+- The `/export` endpoint can time out under heavy load.

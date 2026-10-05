@@ -1,0 +1,27 @@
+sequenceDiagram
+    autonumber
+    participant C as Caller
+    participant M as FeedbackManager
+    participant P as Lifecycle policy
+    participant S as FeedbackStore
+
+    C->>M: cancel(feedback_id)
+    loop until applied, or nothing left to do
+        M->>S: get(feedback_id)
+        S-->>M: current event (status X)
+        alt X is already CANCELLED
+            M-->>C: current event, nothing published
+        else X to CANCELLED is illegal
+            M-->>C: FeedbackLifecycleError
+        else legal
+            M->>P: authorize_transition(current, CANCELLED)
+            M->>S: transition(CANCELLED, expected=X)
+            alt status is still X
+                S-->>M: updated event
+                M-->>C: updated event, published once
+            else changed concurrently
+                S-->>M: FeedbackConflictError
+                Note over M: retry with the fresh status
+            end
+        end
+    end

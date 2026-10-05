@@ -1,57 +1,60 @@
-"""FeedbackManager: feedback infrastructure for LangChain/LangGraph applications.
+"""feedback-manager: feedback infrastructure for LangChain and LangGraph applications.
 
-FeedbackManager captures, correlates, persists, routes, and manages the
-lifecycle of feedback generated during or around agent execution. It is a
-library, not a runtime: LangGraph/LangChain continue to own execution,
-state, checkpoints, interrupts, and streaming.
+Capture, correlate, store, route, and resolve feedback as a first-class domain
+concern. LangChain and LangGraph keep owning execution, state, checkpoints,
+interrupts, and streaming; feedback-manager owns the feedback about them.
 
-The public surface is intentionally small. Most applications only need::
+```python
+from feedback_manager import FeedbackManager, FeedbackTarget, FeedbackTargetType
 
-    from feedback_manager import FeedbackManager, FeedbackSource, FeedbackCategory, FeedbackTarget, FeedbackTargetType
-
-    manager = FeedbackManager()
-    event = await manager.submit(
-        source=FeedbackSource.HUMAN,
-        category=FeedbackCategory.CORRECTION,
-        target=FeedbackTarget(type=FeedbackTargetType.GENERATION, id="gen-1"),
-        payload={"corrected_text": "..."},
-    )
-
-See ``docs/`` for the full architecture, extension points, and framework
-integrations (``feedback_manager.integrations``).
+manager = FeedbackManager()
+feedback = await manager.submit(
+    source="human",
+    category="correction",
+    target=FeedbackTarget(type=FeedbackTargetType.GENERATION, id="gen-1"),
+    payload={"corrected_text": "Canberra is the capital of Australia."},
+)
+```
 """
 
+from importlib.metadata import PackageNotFoundError, version
+
 from feedback_manager.api.manager import FeedbackManager
-from feedback_manager.api.queries import FeedbackQuery
+from feedback_manager.api.stream import FeedbackStream
 from feedback_manager.api.subscription import Subscription
+from feedback_manager.contracts.store import FeedbackQuery
 from feedback_manager.core.categories import FeedbackCategory
-from feedback_manager.core.context import CorrelationContext, ExecutionContext
+from feedback_manager.core.context import ExecutionContext
 from feedback_manager.core.events import FeedbackEvent
 from feedback_manager.core.lifecycle import validate_transition
 from feedback_manager.core.provenance import FeedbackProvenanceReference
 from feedback_manager.core.sources import FeedbackSource
 from feedback_manager.core.status import FeedbackStatus
 from feedback_manager.core.targets import FeedbackTarget, FeedbackTargetType
-from feedback_manager.errors.exceptions import (
+from feedback_manager.errors import (
     FeedbackConfigurationError,
+    FeedbackConflictError,
     FeedbackCorrelationError,
     FeedbackHandlerError,
     FeedbackLifecycleError,
     FeedbackManagerError,
     FeedbackNotFoundError,
     FeedbackRoutingError,
-    FeedbackSerializationError,
     FeedbackStoreError,
+    FeedbackSubscriberError,
     FeedbackValidationError,
 )
 
-__version__ = "0.1.0"
+try:
+    __version__ = version("feedback-manager")
+except PackageNotFoundError:  # pragma: no cover - only when imported from a source tree
+    __version__ = "0.0.0"
 
 __all__ = [
-    "CorrelationContext",
     "ExecutionContext",
     "FeedbackCategory",
     "FeedbackConfigurationError",
+    "FeedbackConflictError",
     "FeedbackCorrelationError",
     "FeedbackEvent",
     "FeedbackHandlerError",
@@ -62,10 +65,11 @@ __all__ = [
     "FeedbackProvenanceReference",
     "FeedbackQuery",
     "FeedbackRoutingError",
-    "FeedbackSerializationError",
     "FeedbackSource",
     "FeedbackStatus",
     "FeedbackStoreError",
+    "FeedbackStream",
+    "FeedbackSubscriberError",
     "FeedbackTarget",
     "FeedbackTargetType",
     "FeedbackValidationError",

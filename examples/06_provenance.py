@@ -1,87 +1,96 @@
-"""Example 6 -- Provenance via langgraph-xai.
+"""Link feedback to the langgraph-xai records of the run it is about.
 
-Instruments a real LangGraph graph with ``langgraph-xai``'s ``XAIRuntime``
-and attaches the resulting execution provenance to feedback submitted from
-inside a running node. Pass the runtime straight to ``FeedbackManager`` via
-``xai_runtime`` -- it wires up the provenance adapter automatically.
+Pass an `XAIRuntime` to `FeedbackManager` and feedback carries a
+`FeedbackProvenanceReference`: during the run it includes the latest decision
+and its evidence; after the run it is resolved from the provenance store.
 
-Run with::
+Run with:
 
     uv run python examples/06_provenance.py
 """
 
 import asyncio
-import os
-import selectors
-import sys
-from typing import TypedDict
+from typing import Any, TypedDict
 
+from langchain_core.runnables import RunnableConfig
 from langgraph.graph import END, START, StateGraph
-from langgraph_xai import XAIRuntime
+from langgraph_xai import DecisionType, EvidenceType, XAIRuntime
 
 from feedback_manager import (
+    ExecutionContext,
     FeedbackCategory,
     FeedbackManager,
     FeedbackSource,
     FeedbackTarget,
     FeedbackTargetType,
 )
+from feedback_manager.integrations.langgraph import execution_context_from_config
+
+xai = XAIRuntime(application_id="support-bot", tenant_id="acme", graph_id="refunds")
+manager = FeedbackManager(xai_runtime=xai)
 
 
-class State(TypedDict):
-    answer: str
+class State(TypedDict, total=False):
+    amount: float
+    route: str
 
 
-async def _build_manager(runtime: XAIRuntime) -> FeedbackManager:
-    # Zero-config by default (in-memory store); set FEEDBACK_MANAGER_POSTGRES_DSN
-    # to run this exact scenario against the real PostgreSQL store instead --
-    # see docs/examples/grafana-observability.md.
-    dsn = os.environ.get("FEEDBACK_MANAGER_POSTGRES_DSN")
-    if not dsn:
-        return FeedbackManager(xai_runtime=runtime)
-    from postgres_feedback_store import PostgresFeedbackStore
+async def assess(state: State) -> State:
+    evidence = await xai.record_evidence(
+        EvidenceType.RULE, summary=f"Refund of {state['amount']} exceeds the 500 limit."
+    )
+    await xai.record_decision(
+        "HUMAN_REVIEW",
+        decision_type=DecisionType.ROUTING,
+        candidate_actions=["AUTO_REFUND", "HUMAN_REVIEW"],
+        evidence_ids=[evidence.id],
+    )
+    return {"route": "HUMAN_REVIEW"}
 
-    store = await PostgresFeedbackStore.connect(dsn)
-    return FeedbackManager(store=store, xai_runtime=runtime)
+
+async def report(state: State, config: RunnableConfig) -> State:
+    # Feedback submitted during the run refers to the run's latest decision.
+    feedback = await manager.submit(
+        source=FeedbackSource.AGENT,
+        category=FeedbackCategory.REQUEST_FOR_HUMAN,
+        target=FeedbackTarget(type=FeedbackTargetType.NODE, id="assess"),
+        payload={"route": state["route"]},
+        execution_context=execution_context_from_config(config, node_id="assess"),
+    )
+    assert feedback.provenance is not None
+    print(f"In-run feedback provenance: {feedback.provenance.summary}")
+    print(f"  decision={feedback.provenance.decision_id}")
+    print(f"  evidence={feedback.provenance.evidence_ids}")
+    return {}
 
 
-def _run(coro):
-    # psycopg's async mode needs a selector event loop; Windows defaults to
-    # the proactor loop, so only override it there.
-    if sys.platform == "win32":
-        return asyncio.run(
-            coro, loop_factory=lambda: asyncio.SelectorEventLoop(selectors.SelectSelector())
-        )
-    return asyncio.run(coro)
+def build_graph() -> Any:
+    builder = StateGraph(State)
+    builder.add_node("assess", assess)
+    builder.add_node("report", report)
+    builder.add_edge(START, "assess")
+    builder.add_edge("assess", "report")
+    builder.add_edge("report", END)
+    return xai.instrument(builder.compile())
 
 
 async def main() -> None:
-    runtime = XAIRuntime(application_id="support-bot", tenant_id="acme-corp", graph_id="qa-graph")
-    manager = await _build_manager(runtime)
+    with xai.collect_runs() as runs:
+        await build_graph().ainvoke({"amount": 900.0})
+    (run,) = runs
 
-    async def answer_node(state: State) -> State:
-        # Feedback submitted while a node is executing automatically picks up
-        # the active langgraph-xai run's provenance.
-        feedback = await manager.submit(
-            source=FeedbackSource.AGENT,
-            category=FeedbackCategory.COMPLETION,
-            target=FeedbackTarget(type=FeedbackTargetType.NODE, id="answer_node"),
-            payload={"answer": "Canberra"},
-        )
-        print(f"Provenance attached: {feedback.provenance}")
-        return {"answer": "Canberra"}
-
-    graph = StateGraph(State)
-    graph.add_node("answer_node", answer_node)
-    graph.add_edge(START, "answer_node")
-    graph.add_edge("answer_node", END)
-    instrumented = runtime.instrument(graph.compile())
-
-    result = await instrumented.ainvoke(
-        {"answer": ""}, config={"configurable": {"thread_id": "prov-example"}}
+    # Later, an evaluator reviews the finished run by its run ID.
+    review = await manager.submit(
+        source=FeedbackSource.EVALUATOR,
+        category=FeedbackCategory.QUALITY,
+        target=FeedbackTarget(type=FeedbackTargetType.RUN, id=str(run.run_id)),
+        payload={"score": 0.9},
+        execution_context=ExecutionContext(run_id=str(run.run_id), node_id="assess"),
     )
-    print(f"Graph result: {result}")
+    assert review.provenance is not None
+    print(f"Post-run feedback provenance: {review.provenance.summary}")
+    print(f"  node execution={review.provenance.node_execution_id}")
 
 
 if __name__ == "__main__":
-    _run(main())
+    asyncio.run(main())

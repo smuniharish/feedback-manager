@@ -1,189 +1,154 @@
 ---
 name: feedback-manager
-description: Integrate, configure, debug, test, or extend the feedback-manager Python library for LangChain/LangGraph applications that need to capture, correlate, persist, route, and resolve human corrections, HITL approvals, tool failures, evaluator scores, generation interruptions, or provenance-linked feedback. Use when adding a durable, first-class feedback domain model around an existing agent application without inventing a duplicate feedback/event system.
+description: Integrate, configure, test, and debug feedback-manager, the feedback infrastructure library for LangChain and LangGraph applications. Use when an application must capture, store, route, query, or resolve feedback - human corrections, ratings, approvals, evaluator scores, tool or model failures, interruptions - or record LangGraph human-in-the-loop requests and decisions, link feedback to langgraph-xai provenance, implement a FeedbackStore for a database, write handlers, subscribers, or policies, or test any of these. Also use when feedback is missing, duplicated, rejected with validation or lifecycle errors, or has no provenance. Do not use to build a tracing platform, an evaluation framework, or a UI.
+license: Apache-2.0
+compatibility: Python 3.12 or newer with LangGraph 1.x. Installs feedback-manager 0.1.x from PyPI, which brings langgraph-xai 1.x. scripts/verify_setup.py runs offline in the project's Python environment.
+metadata:
+  version: "0.1.1"
+  documentation: "https://feedback-manager.readthedocs.io"
 ---
 
 # feedback-manager
 
-Use this skill for the existing `feedback-manager` Python package, not to
-create a new feedback model, event bus, ticketing system, or agent runtime.
+`feedback-manager` makes feedback a first-class record in LangChain and
+LangGraph applications. Each piece of feedback is a validated, immutable
+`FeedbackEvent` that says who sent it (source), what kind it is (category),
+what it is about (target), and where in an execution it happened (execution
+context). `FeedbackManager` correlates, stores, publishes, and routes it, then
+moves it through an explicit lifecycle until it is resolved.
 
-`feedback-manager` is a **library**, not an agent framework or runtime. It
-does not execute agents, orchestrate graphs, replace LangGraph interrupts,
-checkpoints, or streaming, implement evaluators, or perform self-improvement.
-LangChain, LangGraph, `langgraph-xai`, and the host application keep those
-responsibilities.
+Use this skill to add the existing package to an application. LangGraph and
+LangChain keep owning execution, interrupts, and callbacks; `langgraph-xai`
+owns provenance. Do not reimplement any of them.
 
-The stable public surface most applications need:
+## Before you change anything
 
-```python
-from feedback_manager import (
-    FeedbackManager,
-    FeedbackSource,
-    FeedbackCategory,
-    FeedbackTarget,
-    FeedbackTargetType,
-    ExecutionContext,
-    FeedbackQuery,
-)
-```
+1. From the project's Python environment, run the setup check in this skill's
+   directory:
 
-Read [`references/architecture.md`](references/architecture.md) before
-reasoning about internal behavior. Read
-[`references/integration.md`](references/integration.md) before adding it to
-an application. Read [`references/extensibility.md`](references/extensibility.md)
-before replacing a store, router, handler, or policy. Read
-[`references/troubleshooting.md`](references/troubleshooting.md) before
-debugging a failure.
+   ```bash
+   python scripts/verify_setup.py
+   ```
 
-## Activate when
+   It checks Python and package versions and runs feedback, failure capture,
+   human-in-the-loop, and provenance flows offline. Fix every `FAIL` line first.
+2. Find where feedback originates: user-facing endpoints, graph nodes,
+   tools, evaluators, and human-in-the-loop pauses. Find any existing
+   `FeedbackManager` and the tests that cover it.
+3. Pick the matching recipe in [references/RECIPES.md](references/RECIPES.md).
+   Look up exact signatures in [references/API.md](references/API.md).
 
-Use `feedback-manager` when a LangChain/LangGraph application needs a durable,
-queryable, first-class record of feedback rather than ad hoc logs, UI
-comments, or one-off tables.
+## Core workflow
 
-Typical indicators:
+1. Install the package:
 
-- capturing human corrections to generated answers;
-- recording approve/reject decisions around a LangGraph human-in-the-loop
-  interrupt;
-- turning tool failures, timeouts, or cancellations into queryable records;
-- recording evaluator/LLM-as-judge scores or critiques tied to a generation;
-- recording generation interruptions or partial results;
-- correlating any of the above to a run, thread, checkpoint, node, tool call,
-  or generation, optionally with `langgraph-xai` provenance;
-- an existing `feedback-manager` integration needs configuration, a custom
-  store/router/handler/policy, debugging, or tests.
+   ```bash
+   pip install feedback-manager
+   ```
 
-Do not select it merely because an application needs a generic event bus,
-application-wide logging, a database ORM, or an evaluator/scoring framework.
+2. Create one `FeedbackManager` per application or tenant boundary. Every
+   argument is optional; the defaults keep feedback in memory. Pass a durable
+   `store` in production.
 
-## Required workflow
+   ```python
+   from feedback_manager import FeedbackManager
 
-### Before changing an application
+   manager = FeedbackManager()
+   ```
 
-1. Inspect the installed/current `feedback-manager` version and the existing
-   `FeedbackManager(...)` construction. In this repository,
-   [`pyproject.toml`](https://github.com/smuniharish/feedback-manager/blob/master/pyproject.toml)
-   and
-   [`src/feedback_manager/__init__.py`](https://github.com/smuniharish/feedback-manager/blob/master/src/feedback_manager/__init__.py)
-   are the version and public-API sources.
-2. Verify the project's `langchain-core`, `langgraph`, and `langgraph-xai`
-   versions against its lockfile or dependency manifest.
-   `feedback-manager` declares `langchain-core>=1.6,<2`, `langgraph>=1.2.11,<1.3`,
-   and `langgraph-xai>=0.1.0,<0.2` (mandatory, not optional); do not infer
-   compatibility for another installed release.
-3. Search the application's existing store, router, handlers, policies, and
-   observability sink. Preserve deliberate wiring; `FeedbackManager`'s
-   dependencies are all optional constructor keyword arguments with
-   in-memory/no-op defaults, so partial replacement is normal.
-4. Start from the repository example that matches the workload; see
-   [`references/integration.md`](references/integration.md) and
-   [`examples/`](https://github.com/smuniharish/feedback-manager/tree/master/examples).
-5. Use the supported constructor, documented methods, and documented contracts
-   only. The package has no CLI, global registry, or hidden state; every
-   `FeedbackManager` instance is fully independent.
+3. Submit feedback where it originates, with the execution it is about:
 
-### Choose the right response to the task
+   ```python
+   from feedback_manager import FeedbackTarget, FeedbackTargetType
+   from feedback_manager.integrations.langgraph import execution_context_from_config
 
-1. **Capture a human correction, approval, or rejection:** call
-   `manager.submit(source=..., category=..., target=..., payload=...)` and
-   drive it through the lifecycle with `acknowledge()` / `mark_handled()` /
-   `resolve()`. See [`references/integration.md`](references/integration.md).
-2. **Correlate feedback with a LangGraph run:** build an `ExecutionContext`
-   from `execution_context_from_config()` (or construct one directly) and
-   pass it as `execution_context=...` to `submit()`.
-3. **Record a human-in-the-loop decision around a native interrupt:** use
-   `HumanInTheLoopBridge` (`request()` -> `resolve()` -> `resume_command()`).
-   Do not build a second interrupt/resume mechanism; LangGraph still owns
-   pause, persistence, and resume.
-4. **Capture tool/callback failures automatically:** attach
-   `FeedbackCallbackHandler` through LangChain's normal `callbacks=[...]`
-   configuration, or wrap non-callback tool code with
-   `capture_tool_feedback()`.
-5. **Need production persistence, routing, handling, or policy:** implement the
-   matching contract in `feedback_manager.contracts` and inject it through
-   `FeedbackManager(...)` keyword arguments. See
-   [`references/extensibility.md`](references/extensibility.md). Do not
-   subclass or monkeypatch `FeedbackManager` itself for this.
-6. **Need provenance (which execution produced this?):** construct a
-   `langgraph_xai.XAIRuntime` for the graph and pass it as
-   `xai_runtime=...`; do not implement or select a different provenance
-   adapter, since `langgraph-xai` is the sole, mandatory provenance source.
-7. **A submission, transition, routing, or handler call misbehaves:**
-   reproduce with the exact source/category/target/payload/context in use and
-   follow [`references/troubleshooting.md`](references/troubleshooting.md)
-   rather than adding speculative retries or silent `except` blocks.
+   feedback = await manager.submit(
+       source="human",
+       category="correction",
+       target=FeedbackTarget(type=FeedbackTargetType.GENERATION, id=generation_id),
+       payload={"corrected_text": text},
+       execution_context=execution_context_from_config(config),
+       idempotency_key=f"correction:{generation_id}:{user_id}",
+   )
+   ```
 
-## Integration rules
+4. Capture failures automatically by adding the callback handler to the
+   run's callbacks:
 
-- Only construct `FeedbackManager` once per logical application/tenant
-  boundary and reuse it; it holds subscribers and stream queues that should
-  not be duplicated per request.
-- Preserve the happy-path lifecycle
-  `RECEIVED -> ACKNOWLEDGED -> HANDLED -> RESOLVED`; `resolve()` requires the
-  event to already be `HANDLED`, and `ACKNOWLEDGED -> RESOLVED` is illegal.
-  Use `reject()`, `cancel()`, or `expire()` for terminal alternatives instead
-  of forcing an illegal transition.
-- Treat `FeedbackSource`, `FeedbackCategory`, and `FeedbackTargetType` as open
-  string enums: prefer the documented members, but custom string values are
-  legitimate and do not require modifying the package.
-- Do not swallow the exceptions in `feedback_manager.errors`; they all derive
-  from `FeedbackManagerError` and carry `feedback_id`/context, so catch the
-  specific exception you can handle and let the rest propagate.
-- Store failures are blocking by default; routing, handler, subscriber, and
-  provenance failures are best-effort/isolated by `FailurePolicy`. Do not
-  "fix" a best-effort failure by making `submit()` itself swallow store
-  errors.
-- Idempotency is handled by `idempotency_key` at submission and by same-state
-  lifecycle transitions being legal no-ops; do not add a second
-  deduplication layer in application code without checking
-  [`references/architecture.md`](references/architecture.md) first.
+   ```python
+   from feedback_manager.integrations.langchain import FeedbackCallbackHandler
 
-## Reference material map
+   await graph.ainvoke(inputs, {"callbacks": [FeedbackCallbackHandler(manager)]})
+   ```
 
-| Need | File |
-| --- | --- |
-| Domain model, lifecycle, correlation, provenance ownership | [`references/architecture.md`](references/architecture.md) |
-| Wiring into a LangChain/LangGraph application, quickstart | [`references/integration.md`](references/integration.md) |
-| Custom stores, routers, handlers, policies, observability | [`references/extensibility.md`](references/extensibility.md) |
-| Errors, failure isolation, concurrency, debugging steps | [`references/troubleshooting.md`](references/troubleshooting.md) |
+5. Route new feedback to handlers, and move it through the lifecycle as
+   people work on it: `acknowledge`, `mark_handled`, then `resolve`, or
+   `reject`, `cancel`, `expire`.
+6. Test with a strict manager, using
+   [assets/test_feedback_integration.py](assets/test_feedback_integration.py),
+   then run the project's tests and `python scripts/verify_setup.py` again.
 
-## Prohibited shortcuts
+## Rules
 
-Do **not**:
+- **Never change how graphs execute.** Feedback capture observes; it does not
+  alter inputs, outputs, state, or control flow.
+- **Use LangGraph for pauses.** Pause with LangGraph's `interrupt()`, record
+  the request with `HumanInTheLoopBridge.request` after the graph paused, and
+  resume with `bridge.resume_command(response)`. Never call `request` inside
+  the node: the node re-runs on resume and records the request twice.
+- **Submit each piece of feedback once.** Pass an `idempotency_key` derived
+  from what makes the feedback unique whenever a submission can be retried.
+- **Change status only through the lifecycle methods.** Events are frozen.
+  Never write statuses into a store directly, and never skip states:
+  `resolve` requires `HANDLED`.
+- **Keep payloads JSON and free of secrets.** Payloads, metadata, and
+  resolutions are JSON objects with finite numbers. Add a
+  `FeedbackRedactionPolicy` for personal data; keep personal data out of IDs.
+- **Build execution context with the helpers.** Use
+  `execution_context_from_config(config)` in nodes and tools and
+  `execution_context_from_snapshot(snapshot)` after a pause, so feedback
+  carries the `langgraph-xai` run ID.
+- **Implement the whole store contract.** A custom `FeedbackStore` makes
+  `transition` a compare-and-set on `expected`, deduplicates by
+  `idempotency_key` in `create`, and raises the package's errors.
+- **Choose failure modes on purpose.** Production defaults are best-effort and
+  emit `feedback.failed`; tests use `BLOCKING` for every stage.
+- **Catch specific errors.** Every error derives from `FeedbackManagerError`;
+  handle `FeedbackValidationError`, `FeedbackLifecycleError`, or
+  `FeedbackStoreError` where they matter instead of swallowing all of them.
 
-- manually truncate, drop, or fabricate feedback records instead of using
-  `FeedbackManager`'s submission and lifecycle methods;
-- build a second event bus, ticketing model, or feedback schema alongside
-  `FeedbackEvent`;
-- subclass or monkeypatch `FeedbackManager` to add a store, router, handler,
-  policy, or observability integration instead of injecting one through its
-  constructor;
-- implement a custom provenance adapter; `langgraph-xai` is the sole,
-  mandatory provenance source;
-- silently reorder or drop an application's existing middleware, callback, or
-  handler wiring;
-- invent imports, CLI commands, environment variables, or constructor options
-  not present in `feedback_manager.__init__` or the contracts;
-- catch `FeedbackManagerError` (or a subclass) and discard it without
-  handling the failure or re-raising;
-- modify `src/feedback_manager/` while the task is only integration or skill
-  content.
+## Where things go
 
-## Verification checklist
+- Events go to the configured `FeedbackStore`, by default
+  `InMemoryFeedbackStore`, which loses them on exit.
+- New events go to the router's handlers, once. Every new event and every
+  lifecycle change goes to subscribers and streams in the same process.
+- Observability events (`feedback.received`, `feedback.failed`, and others)
+  go to the `ObservabilitySink`, by default structured log records.
+- With `FeedbackManager(xai_runtime=xai)`, each event gets a provenance
+  reference to the `langgraph-xai` run it is about. Decision and evidence IDs
+  exist only for feedback submitted while the run is active.
 
-For an application change, add or update a focused test that uses a real
-`FeedbackEvent`/`ExecutionContext` shape and asserts the relevant outcome:
-lifecycle transition, correlation, routing selection, handler invocation,
-failure isolation, or provenance resolution. Run the project's format, lint,
-type, and test commands (`uv run ruff check`, `uv run mypy`,
-`uv run pytest -q`).
+## When something is wrong
 
-For changes to this skill, follow
-[`../../validation/README.md`](../../validation/README.md). Consult the
-authoritative
-[feedback-manager documentation](https://feedback-manager.readthedocs.io)
-and
-[example collection](https://github.com/smuniharish/feedback-manager/tree/master/examples)
-rather than expanding this file into a second manual.
+Follow [references/TROUBLESHOOTING.md](references/TROUBLESHOOTING.md).
+Common causes:
+
+- `FeedbackValidationError`: a payload value is not JSON, a number is not
+  finite, or an identifier is empty or padded.
+- `FeedbackLifecycleError`: an illegal move, such as `resolve` before
+  `mark_handled`, or a change to closed feedback.
+- `provenance` is `None`: no `xai_runtime`, no `langgraph-xai` run ID in the
+  execution context, or a graph instrumented by another runtime.
+- Nothing recorded by the callback handler: it is not in the run's
+  `callbacks`, or the run succeeded; only failures are recorded.
+
+## References
+
+- [references/API.md](references/API.md): public imports, methods, models,
+  contracts, and errors.
+- [references/RECIPES.md](references/RECIPES.md): complete patterns for common
+  integration tasks.
+- [references/TROUBLESHOOTING.md](references/TROUBLESHOOTING.md): symptoms,
+  causes, and fixes.
+- Documentation: <https://feedback-manager.readthedocs.io>
