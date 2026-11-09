@@ -6,7 +6,7 @@ default for your own implementation of the matching contract:
 - ``store``: where feedback is kept;
 - ``router``: which handlers run for new feedback;
 - ``correlator``: how related feedback is grouped;
-- ``xai_runtime``: links feedback to langgraph-xai provenance;
+- ``provenance_provider``: links feedback to agxai provenance;
 - ``lifecycle_policy``: business rules on lifecycle moves;
 - ``redaction_policy``: removes sensitive data before storage;
 - ``failure_policy``: which stage failures propagate instead of being isolated;
@@ -22,8 +22,8 @@ from collections.abc import Sequence
 from typing import TypedDict
 from uuid import UUID
 
+from agxai import XAIRuntime
 from langgraph.graph import END, START, StateGraph
-from langgraph_xai import XAIRuntime
 
 from feedback_manager import (
     ExecutionContext,
@@ -35,6 +35,7 @@ from feedback_manager import (
     FeedbackTargetType,
 )
 from feedback_manager.contracts import (
+    FeedbackCorrelator,
     FeedbackHandler,
     FeedbackHandlerResult,
     FeedbackLifecyclePolicy,
@@ -42,7 +43,8 @@ from feedback_manager.contracts import (
     FeedbackRouter,
 )
 from feedback_manager.errors import FeedbackRoutingError
-from feedback_manager.observability import ObservabilityEvent
+from feedback_manager.integrations.provenance import AgxaiProvenanceProvider
+from feedback_manager.observability import ObservabilityEvent, ObservabilitySink
 from feedback_manager.policies import FailureMode, FailurePolicy, FeedbackStage
 from feedback_manager.storage import InMemoryFeedbackStore
 
@@ -80,7 +82,7 @@ class EverythingToNotifier(FeedbackRouter):
         return (self._handler,)
 
 
-class ByConversation:
+class ByConversation(FeedbackCorrelator):
     """``correlator``: group feedback by the conversation in its metadata."""
 
     async def correlate(self, feedback: FeedbackEvent) -> str:
@@ -104,7 +106,7 @@ class MaskEmails(FeedbackRedactionPolicy):
         return feedback.model_copy(update={"payload": {**feedback.payload, "email": "***"}})
 
 
-class CollectingSink:
+class CollectingSink(ObservabilitySink):
     """``observability_sink``: keep events in memory instead of logging them."""
 
     def __init__(self) -> None:
@@ -120,7 +122,7 @@ class BrokenRouter(FeedbackRouter):
 
 
 async def run_instrumented_graph(xai: XAIRuntime) -> str:
-    """Run a one-node graph under langgraph-xai and return its run ID."""
+    """Run a one-node graph under agxai and return its run ID."""
 
     class State(TypedDict, total=False):
         answer: str
@@ -141,7 +143,7 @@ async def main() -> None:
         store=store,
         router=EverythingToNotifier(notifier),
         correlator=ByConversation(),
-        xai_runtime=xai,
+        provenance_provider=AgxaiProvenanceProvider(xai),
         lifecycle_policy=ReviewerResolves(),
         redaction_policy=MaskEmails(),
         failure_policy=FailurePolicy(modes={FeedbackStage.HANDLER: FailureMode.BLOCKING}),
@@ -160,7 +162,7 @@ async def main() -> None:
     print(f"store:              {store.writes} write(s)")
     print(f"router + handler:   notified {len(notifier.notified)} time(s)")
     print(f"correlator:         correlation_id={feedback.correlation_id}")
-    print(f"xai_runtime:        {feedback.provenance and feedback.provenance.summary}")
+    print(f"provenance:         {feedback.provenance and feedback.provenance.summary}")
     print(f"redaction_policy:   payload={feedback.payload}")
 
     await manager.acknowledge(feedback.feedback_id)

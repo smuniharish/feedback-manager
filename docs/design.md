@@ -9,7 +9,7 @@ extending it.
 already own execution, state, checkpoints, interrupts, callbacks, and
 streaming. feedback-manager adds the one concern they leave open: feedback
 about that execution. Integrations translate framework objects into feedback
-and never change how graphs run. `langgraph-xai` owns provenance, and feedback
+and never change how graphs run. `agxai` owns provenance, and feedback
 refers to its records instead of copying them.
 
 **Immutable events.** A `FeedbackEvent` never changes; transitions produce new
@@ -51,14 +51,21 @@ which document and enforce their methods. Single-method callables
 (`FeedbackCorrelator`, `FeedbackSubscriber`, `ObservabilitySink`) are
 protocols, which plain functions and objects satisfy without inheritance.
 
-**No hidden state or background work.** Managers share nothing, so tenants,
-tests, and application areas can each have their own. The package starts no
-tasks or threads: expiry, reconciliation, and delivery to other processes run
-when and where your application decides.
+**Explicit background learning.** Managers share nothing. Learning is enabled by
+default with process-local storage and a lazily started worker; publication still
+requires explicit review. Applications can disable it with `learning=False` or
+inject durable providers. Expiry remains application-scheduled. See the
+[learning lifecycle](concepts/learning.md) and [recovery guarantees](how-to/background-learning.md).
 
-**Light to import.** `import feedback_manager` loads none of LangGraph,
-LangChain, or `langgraph-xai`. Integrations import their framework when they are
-used.
+**Framework-agnostic.** `import feedback_manager` loads no agent framework.
+Each framework family is an adapter under `feedback_manager.integrations.frameworks`
+that implements the neutral contracts in `feedback_manager.integrations.base`
+(`FrameworkAdapter`, `ExecutionContextExtractor`, `FailureClassifier`,
+`HumanInTheLoopBridge`, `LearnedContextInjector`), and imports its framework
+only when the adapter itself is imported. LangChain and LangGraph share one
+adapter because they share one runtime; custom agents use a dependency-free
+adapter; new frameworks such as Agno or CrewAI add a sibling package without
+touching the core. See [Integrate a custom agent framework](how-to/custom-agents.md).
 
 ## Extension points
 
@@ -77,7 +84,11 @@ used.
 | `feedback_manager.handlers` | `AuditFeedbackHandler`. |
 | `feedback_manager.policies` | Failure isolation and retention. |
 | `feedback_manager.observability` | Observability events and sinks. |
-| `feedback_manager.integrations` | Adapters for LangChain, LangGraph, and `langgraph-xai`. |
+| `feedback_manager.integrations` | Framework-neutral adapter contracts and `capture_tool_feedback`. |
+| `feedback_manager.integrations.frameworks` | One adapter package per framework family: `custom` and `langchain` (LangChain and LangGraph). |
+| `feedback_manager.integrations.provenance` | `ProvenanceProvider` implementations, such as `AgxaiProvenanceProvider`. |
+| `feedback_manager.learning` | The learning engine: signals, patterns, candidate artifacts, review, and activation. |
+| `feedback_manager.retrieval` | Scoped retrieval of reviewed learned artifacts. |
 | `feedback_manager.errors` | The exception hierarchy. |
 
 Dependencies point inward: integrations depend on the core and contracts, and
@@ -88,13 +99,13 @@ the core depends only on pydantic and the error types.
 feedback-manager deliberately is not:
 
 - **a tracing or monitoring platform:** use LangSmith, OpenTelemetry, or
-  `langgraph-xai`; feedback-manager emits feedback-specific events into them;
+  `agxai`; feedback-manager emits feedback-specific events into them;
 - **a message bus or task queue:** subscribers deliver in-process; publish to
   your broker from a subscriber;
 - **a user interface:** the [Streamlit example](examples/production.md#streamlit-ui)
   shows how small one can be;
 - **an evaluation framework:** evaluators produce feedback that
   feedback-manager records and routes;
-- **an agent runtime or self-improvement loop:** it records and routes
-  feedback; deciding what to change, and changing it, stays with your
-  application and the people running it.
+- **an agent runtime or model-training service:** it can learn reusable guidance
+  from validated feedback, but execution, permissions and model weights remain
+  outside the package. Runtime consumption stays behind optional adapters.

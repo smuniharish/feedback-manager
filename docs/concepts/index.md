@@ -16,7 +16,7 @@ expires it.
 | [`FeedbackEvent`](feedback-events.md) | One immutable piece of feedback: who sent it, what it is, what it is about, and where it happened. |
 | [Lifecycle](lifecycle.md) | The validated state machine every event moves through. |
 | [Correlator](correlation.md) | Groups related feedback under one correlation ID. |
-| [Provenance](provenance.md) | Links feedback to the `langgraph-xai` records of the run it is about. |
+| [Provenance](provenance.md) | Links feedback to the `agxai` records of the run it is about. |
 | [Router and handlers](routing.md) | Decide which of your handlers react to new feedback, and run them. |
 | [Store](storage.md) | Persists events and answers queries. |
 | [Subscribers and streams](delivery.md) | Push every new event and lifecycle change to your code. |
@@ -31,7 +31,7 @@ expires it.
    `FeedbackValidationError` before anything else happens.
 2. The redaction policy, if any, removes sensitive data.
 3. The correlator assigns the correlation ID, and the provenance adapter, when
-   a `langgraph-xai` runtime is configured, attaches a provenance reference.
+   an `agxai` runtime is configured, attaches a provenance reference.
 4. The event is stored as `RECEIVED` in a single write. If its idempotency key
    is already stored, the original event is returned and nothing else runs.
 5. The event is published to subscribers and open streams, and the router
@@ -52,7 +52,7 @@ already do.
 | Executing graphs, state, checkpoints, retries | LangGraph |
 | Pausing and resuming for human input (`interrupt`, `Command`) | LangGraph |
 | Callbacks, tools, models, streaming | LangChain |
-| What ran and why it was decided (provenance, decisions, evidence) | langgraph-xai |
+| What ran and why it was decided (provenance, decisions, evidence) | agxai |
 | Tracing and performance monitoring | Your tracing platform, such as LangSmith or OpenTelemetry |
 | **Feedback about all of the above: capture, correlation, storage, routing, lifecycle** | **feedback-manager** |
 

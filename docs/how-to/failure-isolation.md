@@ -13,7 +13,7 @@ individual stages raise instead.
 | Stage | Runs | Best-effort failure | Blocking error |
 |---|---|---|---|
 | `CORRELATION` | Your correlator | The default correlation ID is used. | `FeedbackCorrelationError`; nothing is stored. |
-| `PROVENANCE` | The `langgraph-xai` lookup | Stored without provenance. | `FeedbackCorrelationError`; nothing is stored. |
+| `PROVENANCE` | The `agxai` lookup | Stored without provenance. | `FeedbackCorrelationError`; nothing is stored. |
 | `ROUTING` | Your router, and the handlers it selects | No handlers run. | `FeedbackRoutingError`; the feedback is stored. |
 | `HANDLER` | Each handler, and the result it returns | The next handler runs. | `FeedbackHandlerError`; the feedback is stored. |
 | `SUBSCRIBER` | Each subscriber | The next subscriber runs. | `FeedbackSubscriberError`; the change is stored. |

@@ -9,14 +9,16 @@
     LangSmith, and the `run_id` in each event's execution context links the two.
 
 ??? question "Do I need LangGraph or LangChain?"
-    The core works in any asyncio application: submit, transition, query, route,
-    and subscribe know nothing about frameworks. The integrations, such as the
-    callback handler and the human-in-the-loop bridge, are for LangChain and
-    LangGraph applications.
+    No. The core works in any asyncio application and never imports an agent
+    framework. LangChain and LangGraph are one optional extra,
+    `feedback-manager[langchain]`, and any other framework, such as Agno or
+    CrewAI, integrates through the same [adapter base classes](how-to/custom-agents.md).
 
-??? question "Do I need langgraph-xai?"
+??? question "Do I need agxai?"
     It is installed as a dependency, but provenance is optional. Feedback only
-    gets provenance when you pass an `xai_runtime` to `FeedbackManager`.
+    gets provenance when you pass
+    `provenance_provider=AgxaiProvenanceProvider(runtime)` to `FeedbackManager`,
+    and the runtime can use [your own provenance store](how-to/customize-components.md#agxai-provenance).
 
 ??? question "Is there a synchronous API?"
     No: storage and delivery are asynchronous. From synchronous code, call
@@ -51,9 +53,10 @@
     traces, write an [observability sink](concepts/observability.md).
 
 ??? question "Which Python versions are supported?"
-    Python 3.12, 3.13, and 3.14, on Linux, macOS, and Windows.
+    Python 3.12, 3.13, 3.14, and 3.15, on Linux, macOS, and Windows. The
+    `lancedb` and `ladybugdb` extras need Python 3.14 or earlier until those
+    databases publish Python 3.15 wheels.
 
 ??? question "How stable is the API?"
-    feedback-manager follows semantic versioning. While it is in `0.x`, minor
-    releases may contain breaking changes; every one is listed in the
-    [changelog](development/changelog.md).
+    feedback-manager follows semantic versioning, and every release is listed
+    in the [changelog](development/changelog.md).

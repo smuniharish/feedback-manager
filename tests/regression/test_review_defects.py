@@ -1,6 +1,6 @@
-"""Regression tests: one per defect found in the 0.1.1 review.
+"""Regression tests: one per defect found in review.
 
-Each test reproduces the scenario that failed in 0.1.0 and asserts the fixed
+Each test reproduces a scenario that once failed and asserts the correct
 behavior, so the defect cannot return unnoticed.
 """
 
@@ -13,13 +13,13 @@ from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING, Any, TypedDict
 
 import pytest
+from agxai import XAIRuntime
 from langchain_core.messages import AIMessage
 from langchain_core.tools import tool
 from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.graph import END, START, StateGraph
 from langgraph.prebuilt import ToolNode
 from langgraph.types import interrupt
-from langgraph_xai import XAIRuntime
 
 from feedback_manager import (
     ExecutionContext,
@@ -33,11 +33,14 @@ from feedback_manager import (
     FeedbackValidationError,
 )
 from feedback_manager.contracts import FeedbackHandler, FeedbackHandlerResult
-from feedback_manager.integrations.langchain import FeedbackCallbackHandler, capture_tool_feedback
-from feedback_manager.integrations.langgraph import (
-    HumanInTheLoopBridge,
+from feedback_manager.integrations.frameworks.langchain import (
+    FeedbackCallbackHandler,
+    LangGraphHumanInTheLoopBridge,
+    capture_tool_feedback,
     execution_context_from_config,
 )
+from feedback_manager.integrations.provenance import AgxaiProvenanceProvider
+from feedback_manager.observability import ObservabilitySink
 from feedback_manager.policies import FailureMode, FailurePolicy, FeedbackStage, RetentionPolicy
 from feedback_manager.routing import DefaultFeedbackRouter
 from feedback_manager.storage import InMemoryFeedbackStore
@@ -139,13 +142,13 @@ def test_negative_limits_are_rejected_instead_of_dropping_results() -> None:
         FeedbackQuery(limit=-1)
 
 
-def test_config_extraction_handles_uuids_and_langgraph_xai_metadata() -> None:
+def test_config_extraction_handles_uuids_and_agxai_metadata() -> None:
     thread, run = uuid.uuid4(), uuid.uuid4()
 
     context = execution_context_from_config(
         {
             "configurable": {"thread_id": thread},
-            "metadata": {"langgraph_node": "plan", "langgraph_xai_run_id": str(run)},
+            "metadata": {"langgraph_node": "plan", "agxai_run_id": str(run)},
         }
     )
 
@@ -214,7 +217,7 @@ async def test_tool_capture_ignores_process_exits_and_never_masks_tool_errors() 
 
 async def test_resolving_an_advanced_request_succeeds() -> None:
     manager = FeedbackManager()
-    bridge = HumanInTheLoopBridge(manager)
+    bridge = LangGraphHumanInTheLoopBridge(manager)
     request = await bridge.request(target=TARGET, prompt="ok?")
     await manager.acknowledge(request.feedback_id)
     await manager.mark_handled(request.feedback_id)
@@ -234,7 +237,7 @@ async def test_post_run_provenance_finds_the_run_by_its_run_id() -> None:
         await xai.instrument(graph.compile()).ainvoke({})
 
     event = await _submit(
-        FeedbackManager(xai_runtime=xai),
+        FeedbackManager(provenance_provider=AgxaiProvenanceProvider(xai)),
         execution_context=ExecutionContext(run_id=str(runs[0].run_id)),
     )
 
@@ -262,7 +265,7 @@ async def test_empty_identifiers_are_rejected() -> None:
 
 
 async def test_a_failing_observability_sink_does_not_fail_stored_feedback() -> None:
-    class BrokenSink:
+    class BrokenSink(ObservabilitySink):
         def emit(self, event: object) -> None:
             raise ConnectionError("collector down")
 

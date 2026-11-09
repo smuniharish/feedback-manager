@@ -34,7 +34,7 @@ feedback = await manager.submit(
 | `execution_context` | You (optional) | The execution the target belongs to. |
 | `idempotency_key` | You (optional) | Deduplicates retried submissions. |
 | `correlation_id` | The correlator | Groups related feedback. See [correlation](correlation.md). |
-| `provenance` | The provenance adapter | Links to `langgraph-xai` records. See [provenance](provenance.md). |
+| `provenance` | The provenance adapter | Links to `agxai` records. See [provenance](provenance.md). |
 | `status` | The lifecycle | See [lifecycle](lifecycle.md). |
 | `resolution` | `resolve`, `reject`, `cancel` | How the feedback was closed. |
 | `created_at`, `updated_at` | Generated | Timezone-aware timestamps (UTC). |
@@ -130,9 +130,10 @@ is optional, because feedback stays useful with partial context.
 
 | Field | Identifies |
 |---|---|
-| `application_id`, `tenant_id`, `graph_id` | The application, tenant, and graph, as `langgraph-xai` names them. |
+| `application_id`, `tenant_id`, `graph_id` | The application, tenant, and graph, as `agxai` names them. |
+| `agent_id` | The agent that produced the target; tells the agents of a multi-agent system apart. |
 | `thread_id` | The LangGraph thread. |
-| `run_id` | The run. Inside a `langgraph-xai` instrumented call, the `langgraph-xai` run ID. |
+| `run_id` | The run. Inside an `agxai` instrumented call, the `agxai` run ID. |
 | `checkpoint_id` | The LangGraph checkpoint. |
 | `node_id`, `task_id` | The graph node and task. |
 | `message_id`, `tool_call_id`, `generation_id` | A message, tool call, or model generation. |
@@ -145,7 +146,7 @@ already gives you.
 ```python
 from langchain_core.runnables import RunnableConfig
 
-from feedback_manager.integrations.langgraph import (
+from feedback_manager.integrations.frameworks.langchain import (
     execution_context_from_config,
     execution_context_from_snapshot,
 )

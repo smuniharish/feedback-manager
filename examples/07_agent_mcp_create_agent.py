@@ -39,7 +39,7 @@ from feedback_manager import (
     FeedbackTarget,
     FeedbackTargetType,
 )
-from feedback_manager.integrations.langchain import FeedbackCallbackHandler
+from feedback_manager.integrations.frameworks.langchain import FeedbackCallbackHandler
 
 WORKSPACE = Path(__file__).parent / "mcp_workspace"
 MODEL_VARIABLE = "FEEDBACK_MANAGER_EXAMPLE_MODEL"

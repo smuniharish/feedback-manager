@@ -46,7 +46,7 @@ class FeedbackStage(StrEnum):
     CORRELATION = "correlation"
     """Assigning the correlation ID; best-effort falls back to the default derivation."""
     PROVENANCE = "provenance"
-    """Resolving ``langgraph-xai`` provenance; best-effort stores the event without it."""
+    """Resolving ``agxai`` provenance; best-effort stores the event without it."""
     ROUTING = "routing"
     """Selecting handlers; best-effort runs no handlers."""
     HANDLER = "handler"

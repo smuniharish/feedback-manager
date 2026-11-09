@@ -58,7 +58,8 @@ _SCHEMA = """
 CREATE TABLE IF NOT EXISTS {table} (
     position        BIGINT GENERATED ALWAYS AS IDENTITY,
     feedback_id     UUID PRIMARY KEY,
-    idempotency_key TEXT UNIQUE,
+    tenant_key      TEXT NOT NULL,
+    idempotency_key TEXT,
     source          TEXT NOT NULL,
     category        TEXT NOT NULL,
     target_type     TEXT NOT NULL,
@@ -67,7 +68,8 @@ CREATE TABLE IF NOT EXISTS {table} (
     correlation_id  TEXT,
     created_at      TIMESTAMPTZ NOT NULL,
     updated_at      TIMESTAMPTZ NOT NULL,
-    event           JSONB NOT NULL
+    event           JSONB NOT NULL,
+    UNIQUE (tenant_key, idempotency_key)
 );
 CREATE INDEX IF NOT EXISTS {position_index} ON {table} (position);
 CREATE INDEX IF NOT EXISTS {status_index} ON {table} (status, position);
@@ -142,9 +144,9 @@ class PostgresFeedbackStore(FeedbackStore):
         """Insert ``feedback``, or return the event already stored with its idempotency key."""
         insert = sql.SQL(
             "INSERT INTO {table} (feedback_id, idempotency_key, source, category, target_type,"
-            " target_id, status, correlation_id, created_at, updated_at, event)"
-            " VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)"
-            " ON CONFLICT (idempotency_key) DO NOTHING RETURNING feedback_id"
+            " target_id, status, correlation_id, created_at, updated_at, event, tenant_key)"
+            " VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)"
+            " ON CONFLICT (tenant_key, idempotency_key) DO NOTHING RETURNING feedback_id"
         ).format(table=self._table)
         try:
             inserted = await self._fetch(
@@ -161,6 +163,9 @@ class PostgresFeedbackStore(FeedbackStore):
                     feedback.created_at,
                     feedback.updated_at,
                     Jsonb(feedback.model_dump(mode="json")),
+                    (feedback.execution_context.tenant_id or "")
+                    if feedback.execution_context is not None
+                    else "",
                 ),
             )
         except errors.UniqueViolation as exc:
@@ -171,10 +176,15 @@ class PostgresFeedbackStore(FeedbackStore):
             return feedback
         # Another submission with the same idempotency key won; return its event.
         (existing,) = await self._fetch(
-            sql.SQL("SELECT event FROM {table} WHERE idempotency_key = %s").format(
-                table=self._table
+            sql.SQL(
+                "SELECT event FROM {table} WHERE idempotency_key = %s AND tenant_key = %s"
+            ).format(table=self._table),
+            (
+                feedback.idempotency_key,
+                (feedback.execution_context.tenant_id or "")
+                if feedback.execution_context is not None
+                else "",
             ),
-            (feedback.idempotency_key,),
         )
         return FeedbackEvent.model_validate(existing[0])
 
@@ -230,6 +240,9 @@ class PostgresFeedbackStore(FeedbackStore):
             if value is not None:
                 clauses.append(sql.SQL("{} = %s").format(sql.Identifier(column)))
                 params.append(str(value))
+        if query.tenant_id is not None or query.unscoped_only:
+            clauses.append(sql.SQL("tenant_key = %s"))
+            params.append(query.tenant_id or "")
         if query.created_after is not None:
             clauses.append(sql.SQL("created_at >= %s"))
             params.append(query.created_after)

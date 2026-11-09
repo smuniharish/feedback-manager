@@ -1,5 +1,43 @@
 # Observability
 
+## Optional OpenTelemetry sink
+
+Install `feedback-manager[otel]` and pass
+`feedback_manager.observability.otel.OpenTelemetryObservabilitySink` as the
+manager's `observability_sink`. Configure OpenTelemetry tracer/meter providers
+and exporters in the host; the library does not install global providers or
+start network exporters. Spans inherit the current host/agxai trace context.
+
+The sink emits feedback-event spans and a low-cardinality event counter.
+Payloads, exception messages and arbitrary event attributes are excluded. IDs are
+opt-in span attributes, never metric labels.
+
+Pass the same sink as `observer=` to `LearningEngine`, `ArtifactIndexer` and a
+hybrid/vector/graph retriever to enable operation spans and a duration histogram.
+Background jobs inherit the engine's observer. These scopes include learning
+batches, jobs, projections, retrieval, embedding calls and projection-database
+operations. Operation names and outcome labels are bounded; exception payloads
+and stack events are excluded. Context follows the current async task. Custom
+observers subclass the framework-neutral `OperationObserver` base class and must
+not suppress failures. This is operation-level timing, not instrumentation of
+every internal query in an arbitrary provider SDK.
+
+```python
+from feedback_manager.learning.engine import LearningEngine
+from feedback_manager.observability.otel import OpenTelemetryObservabilitySink
+from feedback_manager.storage.artifacts import InMemoryArtifactRepository
+
+telemetry = OpenTelemetryObservabilitySink()
+engine = LearningEngine(InMemoryArtifactRepository(), observer=telemetry)
+# Pass engine as learning_engine= and telemetry as observability_sink= to the manager.
+```
+
+For background learning, inspect `background_learner.stats` for enqueued,
+duplicate, skipped, succeeded, learned, retried and dead-lettered counts and
+`store.counts()` for current queue depth. Job logs and stored errors use exception
+types, not raw feedback text. Alert on quarantined scope, growing dead letters
+and repeated reindex failures.
+
 `FeedbackManager` reports what happens to feedback as typed
 `ObservabilityEvent` objects sent to an `ObservabilitySink`. The default sink,
 `LoggingObservabilitySink`, writes one structured log record per event; replace

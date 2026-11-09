@@ -1,14 +1,19 @@
 """Check that feedback-manager is installed and works in this Python environment.
 
-Runs offline and changes nothing. Prints one PASS, FAIL, or INFO line per check
-and exits with status 1 if any check fails:
+Runs offline and changes nothing. Prints one PASS, FAIL, or INFO line per check:
 
-    python scripts/verify_setup.py
+    python scripts/verify_setup.py              # core; LangChain too when installed
+    python scripts/verify_setup.py --langchain  # require the LangChain extra
+    python scripts/verify_setup.py --json       # one JSON object on stdout
+
+Exit codes: 0 every check passed, 1 a check failed.
 """
 
 from __future__ import annotations
 
+import argparse
 import asyncio
+import json
 import platform
 import re
 import sys
@@ -19,18 +24,29 @@ if TYPE_CHECKING:
     from langchain_core.runnables import RunnableConfig
 
 REQUIRED = {
-    "langgraph": ((1, 2, 12), (2,)),
-    "langgraph-xai": ((1, 0, 0), (2,)),
-    "langchain-core": ((1, 6, 6), (2,)),
-    "pydantic": ((2, 13, 5), (3,)),
+    "agxai": ((1, 0, 2), (2,)),
+    "pydantic": ((2, 14, 3), (3,)),
     "structlog": ((26, 1, 0), (27,)),
 }
+LANGCHAIN = {
+    "langchain-core": ((1, 7, 6), (2,)),
+    "langgraph": ((1, 2, 20), (2,)),
+}
+OPTIONAL = ("lancedb", "ladybug", "opentelemetry-sdk")
 
 failures: list[str] = []
+results: list[dict[str, str]] = []
+as_json = False
+
+
+def emit(status: str, message: str) -> None:
+    results.append({"status": status, "message": message})
+    if not as_json:
+        print(f"{status}  {message}")
 
 
 def report(passed: bool, message: str) -> bool:
-    print(f"{'PASS' if passed else 'FAIL'}  {message}")
+    emit("PASS" if passed else "FAIL", message)
     if not passed:
         failures.append(message)
     return passed
@@ -56,7 +72,7 @@ def dotted(version: tuple[int, ...]) -> str:
     return ".".join(map(str, version))
 
 
-def check_environment() -> bool:
+def check_environment(*, langchain: bool) -> bool:
     report(
         sys.version_info >= (3, 12),
         f"Python {platform.python_version()} (3.12 or newer required)",
@@ -68,13 +84,28 @@ def check_environment() -> bool:
         release(version)[:2] == (0, 1),
         f"feedback-manager {version} (0.1.x expected by this skill)",
     )
-    for distribution, (lowest, below) in REQUIRED.items():
+    required = REQUIRED | LANGCHAIN if langchain else REQUIRED
+    for distribution, (lowest, below) in required.items():
         found = installed(distribution)
+        compatible = found is not None and lowest <= release(found) < below
         report(
-            found is not None and lowest <= release(found) < below,
+            compatible,
             f"{distribution} {found or 'is not installed'} "
-            f"(>={dotted(lowest)},<{dotted(below)} required)",
+            f"(>={dotted(lowest)},<{dotted(below)} required)"
+            + (
+                '; install "feedback-manager[langchain]"'
+                if distribution in LANGCHAIN and not compatible
+                else ""
+            ),
         )
+    extras = {name: installed(name) for name in OPTIONAL}
+    present = [f"{name} {version}" for name, version in extras.items() if version]
+    absent = [name for name, version in extras.items() if not version]
+    emit(
+        "INFO",
+        f"optional integrations: {', '.join(present) or 'none'}"
+        + (f" (not installed: {', '.join(absent)})" if absent else ""),
+    )
     return not failures
 
 
@@ -124,6 +155,34 @@ async def check_lifecycle() -> None:
     )
 
 
+async def check_custom_tool_capture() -> None:
+    from feedback_manager import ExecutionContext, FeedbackManager
+    from feedback_manager.integrations import capture_tool_feedback
+    from feedback_manager.observability import NoOpObservabilitySink
+
+    manager = FeedbackManager(observability_sink=NoOpObservabilitySink())
+    try:
+        async with capture_tool_feedback(
+            manager,
+            tool_call_id="call-1",
+            tool_name="lookup",
+            execution_context=ExecutionContext(run_id="verify-setup"),
+        ):
+            raise TimeoutError("lookup timed out")
+    except TimeoutError:
+        propagated = True
+    else:
+        propagated = False
+    events = await manager.query()
+    report(
+        propagated
+        and len(events) == 1
+        and events[0].source == "tool"
+        and events[0].target.id == "call-1",
+        "a custom agent's tool failure is recorded once and still propagates",
+    )
+
+
 class Messages(TypedDict):
     messages: list[Any]
 
@@ -135,7 +194,7 @@ async def check_failure_capture() -> None:
     from langgraph.prebuilt import ToolNode
 
     from feedback_manager import FeedbackManager
-    from feedback_manager.integrations.langchain import FeedbackCallbackHandler
+    from feedback_manager.integrations.frameworks.langchain import FeedbackCallbackHandler
     from feedback_manager.observability import NoOpObservabilitySink
 
     @tool
@@ -185,8 +244,8 @@ async def check_human_in_the_loop() -> None:
     from langgraph.types import interrupt
 
     from feedback_manager import FeedbackManager, FeedbackStatus, FeedbackTarget
-    from feedback_manager.integrations.langgraph import (
-        HumanInTheLoopBridge,
+    from feedback_manager.integrations.frameworks.langchain import (
+        LangGraphHumanInTheLoopBridge,
         execution_context_from_snapshot,
         extract_interrupts,
     )
@@ -202,7 +261,7 @@ async def check_human_in_the_loop() -> None:
     graph = builder.compile(checkpointer=InMemorySaver())
 
     manager = FeedbackManager(observability_sink=NoOpObservabilitySink())
-    bridge = HumanInTheLoopBridge(manager)
+    bridge = LangGraphHumanInTheLoopBridge(manager)
     config: Any = {"configurable": {"thread_id": "verify-setup"}}
     (pending,) = extract_interrupts(await graph.ainvoke({"action": "refund"}, config))
     request = await bridge.request(
@@ -227,15 +286,18 @@ class Review(TypedDict, total=False):
 
 
 async def check_provenance() -> None:
+    from agxai import DecisionType, XAIRuntime
     from langgraph.graph import END, START, StateGraph
-    from langgraph_xai import DecisionType, XAIRuntime
 
     from feedback_manager import ExecutionContext, FeedbackManager, FeedbackTarget
-    from feedback_manager.integrations.langgraph import execution_context_from_config
+    from feedback_manager.integrations.frameworks.langchain import execution_context_from_config
+    from feedback_manager.integrations.provenance import AgxaiProvenanceProvider
     from feedback_manager.observability import NoOpObservabilitySink
 
     xai = XAIRuntime(application_id="verify-setup", tenant_id="local", graph_id="review")
-    manager = FeedbackManager(xai_runtime=xai, observability_sink=NoOpObservabilitySink())
+    manager = FeedbackManager(
+        provenance_provider=AgxaiProvenanceProvider(xai), observability_sink=NoOpObservabilitySink()
+    )
     in_run: list[Any] = []
 
     async def route(state: Review, config: RunnableConfig) -> Review:
@@ -271,24 +333,41 @@ async def check_provenance() -> None:
         and during.decision_id == str(run.decisions[0].id)
         and later.provenance is not None
         and later.provenance.node_execution_id is not None,
-        "feedback links to langgraph-xai provenance during and after the run",
+        "feedback links to agxai provenance during and after the run",
     )
     await xai.close()
 
 
 def main() -> int:
-    if check_environment():
-        for check in (
-            check_lifecycle,
-            check_failure_capture,
-            check_human_in_the_loop,
-            check_provenance,
-        ):
+    global as_json
+    parser = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
+    parser.add_argument("--langchain", action="store_true", help="Require the LangChain extra.")
+    parser.add_argument("--json", action="store_true", help="Print one JSON object to stdout.")
+    arguments = parser.parse_args()
+    as_json = arguments.json
+    langchain = arguments.langchain or installed("langgraph") is not None
+    if not langchain:
+        emit(
+            "INFO",
+            'LangChain and LangGraph checks skipped; install "feedback-manager[langchain]" '
+            "to enable them.",
+        )
+    if check_environment(langchain=langchain):
+        checks = [check_lifecycle, check_custom_tool_capture]
+        if langchain:
+            checks.extend((check_failure_capture, check_human_in_the_loop, check_provenance))
+        for check in checks:
             try:
                 asyncio.run(check())
             except Exception as error:  # report every failing check, then the summary
                 report(False, f"{check.__name__}: {type(error).__name__}: {error}")
-    print("All checks passed." if not failures else f"{len(failures)} check(s) failed.")
+    summary = "All checks passed." if not failures else f"{len(failures)} check(s) failed."
+    if as_json:
+        print(json.dumps({"ok": not failures, "summary": summary, "checks": results}, indent=2))
+    else:
+        print(summary)
     return 1 if failures else 0
 
 

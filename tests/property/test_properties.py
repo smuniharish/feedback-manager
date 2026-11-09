@@ -28,7 +28,7 @@ from feedback_manager import (
 from feedback_manager.contracts import FeedbackHandler, FeedbackHandlerResult
 from feedback_manager.core import LEGAL_TRANSITIONS, is_legal_transition
 from feedback_manager.correlation import default_correlation_id
-from feedback_manager.integrations.langgraph import execution_context_from_config
+from feedback_manager.integrations.frameworks.langchain import execution_context_from_config
 from feedback_manager.observability import NoOpObservabilitySink
 from feedback_manager.policies import FailureMode, FailurePolicy, FeedbackStage, RetentionPolicy
 from feedback_manager.routing import DefaultFeedbackRouter, RoutingRule

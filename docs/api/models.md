@@ -21,17 +21,20 @@ Any other non-empty string without surrounding whitespace is valid too.
 ::: feedback_manager.core.FeedbackSource
     options:
       show_bases: false
-      inherited_members: [known_values]
+      inherited_members:
+        - known_values
 
 ::: feedback_manager.core.FeedbackCategory
     options:
       show_bases: false
-      inherited_members: [known_values]
+      inherited_members:
+        - known_values
 
 ::: feedback_manager.core.FeedbackTargetType
     options:
       show_bases: false
-      inherited_members: [known_values]
+      inherited_members:
+        - known_values
 
 ## Lifecycle
 

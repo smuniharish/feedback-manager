@@ -177,7 +177,7 @@ class TestLogging:
 
 
 class TestObservabilitySinks:
-    def test_sinks_satisfy_the_protocol(self) -> None:
+    def test_sinks_satisfy_the_contract(self) -> None:
         assert isinstance(LoggingObservabilitySink(), ObservabilitySink)
         assert isinstance(NoOpObservabilitySink(), ObservabilitySink)
 

@@ -67,22 +67,22 @@
 ## Provenance
 
 ??? question "`feedback.provenance` is `None`"
-    - The manager has no `xai_runtime`, or the graph is instrumented by a
-      different runtime.
+    - The manager has no `provenance_provider`, or the agent runs under a
+      different agxai runtime than the provider's.
     - The feedback has no `run_id` and was submitted outside an instrumented
       call. Build its context with `execution_context_from_config(config)` or
       `execution_context_from_snapshot(snapshot)`.
-    - The `run_id` is not a `langgraph-xai` run ID, for example a LangChain run
+    - The `run_id` is not an `agxai` run ID, for example a LangChain run
       ID, or it names a run that is not in the runtime's provenance store.
     - The lookup failed: look for a `feedback.failed` event with
       `stage="provenance"`.
 
 ??? question "`node_execution_id` is missing for feedback submitted inside a node"
-    `langgraph-xai` records a node execution when the node finishes. Feedback
+    `agxai` records a node execution when the node finishes. Feedback
     submitted from inside the node, before it returns, cannot point at it yet.
 
 ??? question "`decision_id` and `evidence_ids` are empty after the run"
-    `langgraph-xai` does not store decisions and evidence; they are available
+    `agxai` does not store decisions and evidence; they are available
     only while the run is active. Submit feedback about a decision during the
     run to capture them.
 

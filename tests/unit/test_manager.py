@@ -25,6 +25,7 @@ from feedback_manager import (
     FeedbackValidationError,
 )
 from feedback_manager.contracts import (
+    FeedbackCorrelator,
     FeedbackHandler,
     FeedbackHandlerResult,
     FeedbackLifecyclePolicy,
@@ -37,6 +38,7 @@ from feedback_manager.errors import (
     FeedbackHandlerError,
     FeedbackRoutingError,
 )
+from feedback_manager.observability import ObservabilitySink
 from feedback_manager.policies import FailureMode, FailurePolicy, FeedbackStage, RetentionPolicy
 from feedback_manager.routing import DefaultFeedbackRouter
 from feedback_manager.storage import InMemoryFeedbackStore
@@ -80,7 +82,7 @@ class TestConstruction:
             "redaction_policy",
             "failure_policy",
             "observability_sink",
-            "xai_runtime",
+            "provenance_provider",
         ],
     )
     def test_wrongly_typed_collaborators_are_rejected(self, name: str) -> None:
@@ -158,7 +160,7 @@ class TestSubmit:
     async def test_replays_skip_redaction_correlation_and_provenance(
         self, sink: RecordingSink, target: FeedbackTarget
     ) -> None:
-        class FailsAfterFirst:
+        class FailsAfterFirst(FeedbackCorrelator):
             def __init__(self) -> None:
                 self.calls = 0
 
@@ -222,7 +224,7 @@ class TestSubmit:
             assert await manager.query() == []
 
     async def test_custom_correlators_group_feedback(self, target: FeedbackTarget) -> None:
-        class ByConversation:
+        class ByConversation(FeedbackCorrelator):
             async def correlate(self, feedback: FeedbackEvent) -> str:
                 return str(feedback.metadata["conversation"])
 
@@ -237,11 +239,11 @@ class TestSubmit:
     async def test_invalid_correlation_ids_fall_back_to_the_default(
         self, sink: RecordingSink, target: FeedbackTarget, value: object
     ) -> None:
-        class Invalid:
-            async def correlate(self, feedback: FeedbackEvent) -> object:
-                return value
+        class Invalid(FeedbackCorrelator):
+            async def correlate(self, feedback: FeedbackEvent) -> str:
+                return value  # type: ignore[return-value]
 
-        manager = FeedbackManager(correlator=Invalid(), observability_sink=sink)  # type: ignore[arg-type]
+        manager = FeedbackManager(correlator=Invalid(), observability_sink=sink)
 
         event = await _submit(manager, target, execution_context=ExecutionContext(run_id="r-1"))
 
@@ -255,7 +257,7 @@ class TestSubmit:
     async def test_blocking_correlation_failures_stop_submission(
         self, target: FeedbackTarget
     ) -> None:
-        class Broken:
+        class Broken(FeedbackCorrelator):
             async def correlate(self, feedback: FeedbackEvent) -> str:
                 raise ConnectionError("lookup service down")
 
@@ -384,7 +386,7 @@ class TestObservabilityIsolation:
     async def test_a_failing_sink_never_breaks_processing(
         self, target: FeedbackTarget, caplog: pytest.LogCaptureFixture
     ) -> None:
-        class BrokenSink:
+        class BrokenSink(ObservabilitySink):
             def emit(self, event: object) -> None:
                 raise ConnectionError("collector unreachable")
 

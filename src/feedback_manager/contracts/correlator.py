@@ -2,14 +2,14 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Protocol, runtime_checkable
+from abc import ABC, abstractmethod
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from feedback_manager.core.events import FeedbackEvent
 
 
-@runtime_checkable
-class FeedbackCorrelator(Protocol):
+class FeedbackCorrelator(ABC):
     """Assigns the correlation ID that groups related feedback.
 
     `FeedbackManager` calls it once per submission. Feedback that shares a
@@ -18,9 +18,9 @@ class FeedbackCorrelator(Protocol):
     feedback by run, then thread, then checkpoint.
     """
 
+    @abstractmethod
     async def correlate(self, feedback: FeedbackEvent) -> str:
         """Return the correlation ID for ``feedback``: a non-empty string."""
-        ...
 
 
 __all__ = ["FeedbackCorrelator"]

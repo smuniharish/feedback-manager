@@ -21,7 +21,7 @@ Feedback about thread support-7: 1 event(s)
 ## 02 Human-in-the-loop approval
 
 A graph pauses with a native LangGraph `interrupt()` before sending a refund
-email. `HumanInTheLoopBridge` records the request and the reviewer's decision,
+email. `LangGraphHumanInTheLoopBridge` records the request and the reviewer's decision,
 and the graph resumes with the decision. See
 [recording human-in-the-loop decisions](../how-to/langgraph-hitl.md).
 
@@ -88,7 +88,7 @@ Routed to human review: ['gen-2']
 
 ## 06 Provenance
 
-A `langgraph-xai` instrumented graph records a routing decision and its
+An `agxai` instrumented graph records a routing decision and its
 evidence. Feedback submitted during the run points at that decision; feedback
 submitted after the run points at the stored execution. See
 [linking feedback to provenance](../how-to/xai-provenance.md).
@@ -98,10 +98,10 @@ submitted after the run points at the stored execution. See
 ```
 
 ```text title="Output"
-In-run feedback provenance: langgraph-xai run 273fa0c7-a518-454b-bf0b-652ebcc037fe (running): 1 node execution(s), 0 tool execution(s)
+In-run feedback provenance: agxai run 273fa0c7-a518-454b-bf0b-652ebcc037fe (running): 1 node execution(s), 0 tool execution(s)
   decision=583a7e1d-0333-4782-a336-0f7e8ab93cff
   evidence=('b675f115-2902-4de0-9fed-388f412f28a8',)
-Post-run feedback provenance: langgraph-xai run 273fa0c7-a518-454b-bf0b-652ebcc037fe (completed): 2 node execution(s), 0 tool execution(s)
+Post-run feedback provenance: agxai run 273fa0c7-a518-454b-bf0b-652ebcc037fe (completed): 2 node execution(s), 0 tool execution(s)
   node execution=6e6ec809-68b3-4a34-aebe-1e685eb9304d
 ```
 

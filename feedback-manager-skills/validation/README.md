@@ -1,4 +1,4 @@
-# Validating the feedback-manager skill
+# Validating the feedback-manager skills
 
 ## Automated checks
 
@@ -7,19 +7,34 @@ Run from the repository root:
 ```bash
 uv run pytest tests/skill
 uvx --from skills-ref agentskills validate feedback-manager-skills/skills/feedback-manager
+uvx --from skills-ref agentskills validate feedback-manager-skills/skills/feedback-manager-learning
+uvx --from skills-ref agentskills validate feedback-manager-skills/skills/feedback-manager-extend
 ```
 
-`tests/skill` runs offline in continuous integration. It checks that:
+`tests/skill` runs offline in continuous integration. For every skill, it checks that:
 
-- the skill passes the reference validator, `skills-ref`, which applies the
-  specification's rules for `name`, `description`, `compatibility`, and the
-  other frontmatter fields;
-- `name` matches the directory, `license` is `Apache-2.0`, and
-  `metadata.version` equals the package version;
-- `SKILL.md` has fewer than 500 lines, and `references/` is one level deep;
-- every relative link in the skill resolves;
-- `scripts/verify_setup.py` passes, with warnings treated as errors;
-- `assets/test_feedback_integration.py` passes.
+- the skill passes the reference validator, `skills-ref`;
+- `name` matches the directory, `license` is `Apache-2.0`, `metadata.version`
+  equals the package version, and the description says when to use the skill
+  and when not to;
+- `SKILL.md` has fewer than 500 lines and links every file in `references/`,
+  which is one level deep;
+- every relative link resolves, with the exact case of the file name;
+- `SKILL.md` mentions every bundled script and asset;
+- `evals/evals.json` has at least three evaluations whose fixtures exist;
+- `evals/trigger_queries.json` has at least 16 unique queries, balanced
+  between train and validation splits and between queries that should and
+  should not trigger, and no query triggers two skills.
+
+It also runs the bundled code:
+
+- `verify_setup.py` and `verify_learning.py` pass with warnings treated as
+  errors, in text and `--json` modes, and the version ranges in
+  `verify_setup.py` equal those in `pyproject.toml`;
+- each skill's `assets/` tests pass;
+- `check_component.py` exits 0 for the store template, 1 for a store that
+  breaks a promise, and 2 for a factory it cannot load;
+- the eval fixtures run.
 
 ## Source review
 
@@ -30,26 +45,29 @@ check each snippet and claim against its source:
 | --- | --- |
 | Public imports, signatures, and the package version | [`src/feedback_manager/__init__.py`](../../src/feedback_manager/__init__.py), [`pyproject.toml`](../../pyproject.toml), and the [API reference](../../docs/api/index.md) |
 | Submission, lifecycle, queries, and delivery | [`src/feedback_manager/api/manager.py`](../../src/feedback_manager/api/manager.py) and [`src/feedback_manager/core/lifecycle.py`](../../src/feedback_manager/core/lifecycle.py) |
-| The store contract | [`src/feedback_manager/contracts/store.py`](../../src/feedback_manager/contracts/store.py) and [`tests/examples/test_stores.py`](../../tests/examples/test_stores.py) |
-| Failure capture and human-in-the-loop | [`src/feedback_manager/integrations/`](../../src/feedback_manager/integrations/), [LangChain failures](../../docs/how-to/langchain-failures.md), and [human-in-the-loop](../../docs/how-to/langgraph-hitl.md) |
-| Provenance | [`src/feedback_manager/integrations/xai/adapter.py`](../../src/feedback_manager/integrations/xai/adapter.py) and [provenance](../../docs/concepts/provenance.md) |
+| Component contracts | [`src/feedback_manager/contracts/`](../../src/feedback_manager/contracts/) and the contract kits in [`src/feedback_manager/testing.py`](../../src/feedback_manager/testing.py) |
+| Learning, validation, and retrieval | [`src/feedback_manager/learning/`](../../src/feedback_manager/learning/), [`src/feedback_manager/retrieval/`](../../src/feedback_manager/retrieval/), and [`src/feedback_manager/storage/`](../../src/feedback_manager/storage/) |
+| Framework adapters and failure capture | [`src/feedback_manager/integrations/`](../../src/feedback_manager/integrations/), [LangChain failures](../../docs/how-to/langchain-failures.md), and [human-in-the-loop](../../docs/how-to/langgraph-hitl.md) |
+| Provenance and agxai components | [`src/feedback_manager/integrations/provenance/agxai.py`](../../src/feedback_manager/integrations/provenance/agxai.py) and [provenance](../../docs/concepts/provenance.md) |
 | Failure isolation and security | [failure isolation](../../docs/how-to/failure-isolation.md) and [security](../../docs/operations/security.md) |
 | Working patterns | [`examples/`](../../examples/) and [`tests/`](../../tests/) |
 
 If a behavior has no implementation, test, or documentation, leave it out of
 the skill rather than infer it.
 
-## Activation matrix
+## Activation review
 
-Review that the description and instructions lead an agent to the right
-route for each task:
+`evals/trigger_queries.json` in each skill lists queries that should and should
+not activate it. Review new queries against the description, and route
+near-misses to the sibling skill:
 
-| Task | Activates | Route | Avoids |
-| --- | --- | --- | --- |
-| "Let users rate and correct the agent's answers." | Yes | Core workflow: `submit` with a target, execution context, and idempotency key; lifecycle methods as the feedback is worked on. | Mutating events or writing statuses into the store. |
-| "Record every tool timeout in our agent." | Yes | `FeedbackCallbackHandler` in the run's callbacks; `capture_tool_feedback` for direct tool calls. | Wrapping every tool in try/except to submit feedback by hand. |
-| "Keep an audit trail of human approvals." | Yes | LangGraph `interrupt()`, `HumanInTheLoopBridge.request` after the pause, `resolve`, and `resume_command`. | Calling `request` inside the node, or replacing LangGraph's interrupt. |
-| "Store feedback in PostgreSQL." | Yes | A `FeedbackStore` with compare-and-set transitions, from the store examples, checked with the store contract tests. | Skipping `expected` in `transition`, or credentials in code. |
-| "Which decision was this complaint about?" | Yes | One `XAIRuntime` shared by the graph and the manager; feedback during the run for decision IDs. | Copying provenance into payloads. |
-| "Feedback has no provenance" or "the callback records nothing." | Yes | Troubleshooting. | Disabling validation or failure policies to hide errors. |
-| "Build a dashboard UI for traces." | No | Not this package's purpose. | Inventing capabilities. |
+| Task | Skill |
+| --- | --- |
+| "Let users rate and correct the agent's answers." | `feedback-manager` |
+| "Record every tool timeout in our agent." | `feedback-manager` |
+| "Which decision was this complaint about?" | `feedback-manager` |
+| "Make the agent stop repeating corrected mistakes." | `feedback-manager-learning` |
+| "Retrieval returns nothing for our agent." | `feedback-manager-learning` |
+| "Store feedback in PostgreSQL." | `feedback-manager-extend` |
+| "Support CrewAI agents." | `feedback-manager-extend` |
+| "Build a dashboard UI for traces." | none |

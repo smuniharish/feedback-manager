@@ -29,7 +29,7 @@ Find the symptom, check the causes in order, and apply the fix.
 |---|---|---|
 | `FeedbackCallbackHandler` records nothing | It is not in the run's `callbacks`, or the run succeeded. | Pass it in `config["callbacks"]`. Only failures are recorded. |
 | One cancellation for a run whose nodes were all cancelled | Cancelling a run cancels everything inside it. | Expected: a cancellation is recorded once, about the top-level run. |
-| A `GraphInterrupt` is not recorded | Interrupts are control flow, not failures. | Record pauses with `HumanInTheLoopBridge`. |
+| A `GraphInterrupt` is not recorded | Interrupts are control flow, not failures. | Record pauses with `LangGraphHumanInTheLoopBridge`. |
 | A direct MCP or HTTP tool failure is missing | No LangChain runnable, so no callbacks. | Wrap the call in `capture_tool_feedback`. |
 | The callback handler logs `Error in FeedbackCallbackHandler...` | Recording failed, for example the store is down. | Fix the store; the original exception still propagated. |
 
@@ -46,11 +46,11 @@ Find the symptom, check the causes in order, and apply the fix.
 
 | Symptom | Cause | Fix |
 |---|---|---|
-| `provenance` is `None` | No `xai_runtime` on the manager, or the graph is instrumented by another runtime. | Share one `XAIRuntime` between `instrument` and `FeedbackManager`. |
+| `provenance` is `None` | No `provenance_provider` on the manager, or the graph is instrumented by another runtime. | Pass `AgxaiProvenanceProvider(xai)` built from the same `XAIRuntime` that instruments the graph. |
 | `provenance` is `None` for feedback from a node | The execution context has no run ID. | Use `execution_context_from_config(config)`, with `config: RunnableConfig` in the node signature. |
-| `provenance` is `None` after the run | The `run_id` is not a `langgraph-xai` run ID, or the run is not in the provenance store. | Use the run ID from `xai.collect_runs()` or `execution_context_from_snapshot`. |
+| `provenance` is `None` after the run | The `run_id` is not an `agxai` run ID, or the run is not in the provenance store. | Use the run ID from `xai.collect_runs()` or `execution_context_from_snapshot`. |
 | No `node_execution_id` for in-node feedback | Node executions are recorded when nodes finish. | Expected; feedback from a later node or after the run has it. |
-| No `decision_id` or `evidence_ids` after the run | `langgraph-xai` keeps them in the live run only. | Submit decision feedback during the run. |
+| No `decision_id` or `evidence_ids` after the run | `agxai` keeps them in the live run only. | Submit decision feedback during the run. |
 | A `feedback.failed` event with `stage="provenance"` | The provenance lookup raised. | Check the provenance store; the feedback was stored without provenance. |
 
 ## Delivery and operations
@@ -63,3 +63,12 @@ Find the symptom, check the causes in order, and apply the fix.
 | `TypeError: ... not a FeedbackHandlerResult` (or `not a FeedbackHandler`) | A handler returned something else, or a router selected a non-handler. | Return `FeedbackHandlerResult(handled=...)`; route to `FeedbackHandler` instances. |
 | Memory grows with an open stream | Undelivered events are buffered without limit. | Read streams continuously and close them when done. |
 | `Psycopg cannot use the 'ProactorEventLoop'` | psycopg async needs a selector loop on Windows. | `asyncio.run(main(), loop_factory=asyncio.SelectorEventLoop)`. |
+
+## Framework adapters
+
+| Symptom | Cause | Fix |
+|---|---|---|
+| `ImportError: ... install them with: pip install "feedback-manager[langchain]"` | The LangChain and LangGraph adapter was imported without its extra. | Install `feedback-manager[langchain]`, or use `CustomAgentAdapter`, which needs no extra. |
+| `ModuleNotFoundError: feedback_manager.integrations.langgraph` (or `.langchain`, `.xai`) | Wrong import path. | Import adapters from `feedback_manager.integrations.frameworks.langchain` or `.custom`, and provenance from `feedback_manager.integrations.provenance`. |
+| `FeedbackConfigurationError: ... must be a ...` for your own component | It has the right methods but does not subclass the base class. | Subclass the abstract base class, such as `class MyStore(FeedbackStore):`. |
+| `FeedbackConfigurationError` from `create_agxai_runtime` | An agxai component does not subclass its agxai base class. | Subclass `agxai.ProvenanceStore`, `agxai.XAIPlugin`, and so on. |

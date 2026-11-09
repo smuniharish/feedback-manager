@@ -2,7 +2,7 @@
 
 ``deepagents`` builds a LangGraph agent with planning and file tools. Here its
 ``edit_file`` tool requires approval (``interrupt_on``), the agent is
-instrumented by ``langgraph-xai``, and `HumanInTheLoopBridge` records the
+instrumented by ``agxai``, and `LangGraphHumanInTheLoopBridge` records the
 approval request, linked to the tool call and to the paused run's provenance,
 and the reviewer's decision. The agent edits a temporary copy of
 ``examples/mcp_workspace``, so the repository stays unchanged.
@@ -23,19 +23,20 @@ import sys
 import tempfile
 from pathlib import Path
 
+from agxai import XAIRuntime
 from deepagents import create_deep_agent
 from deepagents.backends import FilesystemBackend
 from langchain.chat_models import init_chat_model
 from langchain_core.runnables import RunnableConfig
 from langgraph.checkpoint.memory import InMemorySaver
-from langgraph_xai import XAIRuntime
 
 from feedback_manager import FeedbackManager, FeedbackTarget, FeedbackTargetType
-from feedback_manager.integrations.langgraph import (
-    HumanInTheLoopBridge,
+from feedback_manager.integrations.frameworks.langchain import (
+    LangGraphHumanInTheLoopBridge,
     execution_context_from_snapshot,
     extract_interrupts,
 )
+from feedback_manager.integrations.provenance import AgxaiProvenanceProvider
 
 WORKSPACE = Path(__file__).parent / "mcp_workspace"
 MODEL_VARIABLE = "FEEDBACK_MANAGER_EXAMPLE_MODEL"
@@ -50,8 +51,8 @@ async def main() -> None:
     if not model:
         sys.exit(f"Set {MODEL_VARIABLE} to a model for init_chat_model, such as openai:<model>.")
     xai = XAIRuntime(application_id="docs-bot", tenant_id="acme", graph_id="release-notes")
-    manager = FeedbackManager(xai_runtime=xai)
-    bridge = HumanInTheLoopBridge(manager)
+    manager = FeedbackManager(provenance_provider=AgxaiProvenanceProvider(xai))
+    bridge = LangGraphHumanInTheLoopBridge(manager)
 
     with tempfile.TemporaryDirectory() as directory:
         workspace = Path(directory)

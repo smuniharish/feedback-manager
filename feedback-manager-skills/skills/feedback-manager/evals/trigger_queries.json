@@ -1,0 +1,25 @@
+{
+  "skill_name": "feedback-manager",
+  "queries": [
+    {"query": "record thumbs up and thumbs down ratings from my langgraph chatbot against the run", "should_trigger": true, "split": "train"},
+    {"query": "capture tool failures from my custom python agent as feedback and query them later", "should_trigger": true, "split": "train"},
+    {"query": "store the human approval decision from an interrupt() in feedback-manager", "should_trigger": true, "split": "train"},
+    {"query": "feedback-manager submit raises FeedbackValidationError: target is required", "should_trigger": true, "split": "train"},
+    {"query": "route correction feedback to a slack handler and ratings to the analytics handler", "should_trigger": true, "split": "train"},
+    {"query": "link every feedback event to the agxai decision it is about", "should_trigger": true, "split": "train"},
+    {"query": "our feedback events show up twice when the user double clicks", "should_trigger": true, "split": "validation"},
+    {"query": "redact emails from feedback payloads before they are stored", "should_trigger": true, "split": "validation"},
+    {"query": "feedback.provenance is always None even though agxai is installed", "should_trigger": true, "split": "validation"},
+    {"query": "write pytest tests for the feedback our support agent records", "should_trigger": true, "split": "validation"},
+    {"query": "turn approved corrections into lessons my agent retrieves next time", "should_trigger": false, "split": "train"},
+    {"query": "implement a FeedbackStore on DynamoDB and pass the contract kit", "should_trigger": false, "split": "train"},
+    {"query": "build a react widget with star ratings", "should_trigger": false, "split": "train"},
+    {"query": "fine-tune llama on our user feedback", "should_trigger": false, "split": "train"},
+    {"query": "set up langsmith evaluations for my rag pipeline", "should_trigger": false, "split": "train"},
+    {"query": "write a feedback-manager adapter for CrewAI", "should_trigger": false, "split": "train"},
+    {"query": "configure LanceDB hybrid retrieval for learned artifacts", "should_trigger": false, "split": "validation"},
+    {"query": "send a customer satisfaction survey email after checkout", "should_trigger": false, "split": "validation"},
+    {"query": "explain why my langgraph agent routed to manual review", "should_trigger": false, "split": "validation"},
+    {"query": "build an OpenTelemetry tracing backend", "should_trigger": false, "split": "validation"}
+  ]
+}

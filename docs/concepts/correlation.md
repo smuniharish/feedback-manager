@@ -21,7 +21,7 @@ feedback carries:
 4. otherwise the feedback's own `feedback_id`: feedback without execution
    context is a group of one.
 
-Inside a `langgraph-xai` instrumented graph, `run_id` is the `langgraph-xai`
+Inside an `agxai` instrumented graph, `run_id` is the `agxai`
 run ID, so the correlation ID matches the run's provenance records.
 
 ## A custom correlator

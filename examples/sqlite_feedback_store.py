@@ -38,6 +38,7 @@ from feedback_manager import (
     validate_transition,
 )
 from feedback_manager.contracts import FeedbackStore
+from feedback_manager.contracts.changes import FeedbackChangePage, FeedbackChangeSource
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -50,24 +51,31 @@ _SCHEMA = """
 CREATE TABLE IF NOT EXISTS feedback (
     position        INTEGER PRIMARY KEY AUTOINCREMENT,
     feedback_id     TEXT NOT NULL UNIQUE,
-    idempotency_key TEXT UNIQUE,
+    tenant_key      TEXT NOT NULL,
+    idempotency_key TEXT,
     status          TEXT NOT NULL,
-    event           TEXT NOT NULL
-)
+    event           TEXT NOT NULL,
+    UNIQUE (tenant_key, idempotency_key)
+);
+CREATE TABLE IF NOT EXISTS feedback_changes (
+    position INTEGER PRIMARY KEY AUTOINCREMENT,
+    event TEXT NOT NULL
+);
 """
 _OLDEST_FIRST = "SELECT event FROM feedback ORDER BY position"
 _NEWEST_FIRST = "SELECT event FROM feedback ORDER BY position DESC"
 _BY_KEY = "SELECT event FROM feedback WHERE idempotency_key = ?"
+_BY_SCOPED_KEY = _BY_KEY + " AND tenant_key = ?"
 
 
-class SQLiteFeedbackStore(FeedbackStore):
+class SQLiteFeedbackStore(FeedbackStore, FeedbackChangeSource):
     """Stores feedback in one SQLite database file, created if it does not exist."""
 
     def __init__(self, path: str | Path) -> None:
         self._path = str(path)
         with closing(self._connect()) as db:
             db.execute("PRAGMA journal_mode = WAL")
-            db.execute(_SCHEMA)
+            db.executescript(_SCHEMA)
 
     def _connect(self) -> sqlite3.Connection:
         # Autocommit mode: each statement commits unless a transaction is open.
@@ -97,28 +105,43 @@ class SQLiteFeedbackStore(FeedbackStore):
         return await asyncio.to_thread(self._query, query)
 
     def _create(self, feedback: FeedbackEvent) -> FeedbackEvent:
+        tenant = (
+            None if feedback.execution_context is None else feedback.execution_context.tenant_id
+        )
         with closing(self._connect()) as db:
+            db.execute("BEGIN IMMEDIATE")
             try:
                 inserted = db.execute(
-                    "INSERT INTO feedback (feedback_id, idempotency_key, status, event)"
-                    " VALUES (?, ?, ?, ?) ON CONFLICT (idempotency_key) DO NOTHING",
+                    "INSERT INTO feedback (feedback_id, tenant_key, idempotency_key, status, event)"
+                    " VALUES (?, ?, ?, ?, ?) "
+                    "ON CONFLICT (tenant_key, idempotency_key) DO NOTHING",
                     (
                         str(feedback.feedback_id),
+                        tenant or "",
                         feedback.idempotency_key,
                         feedback.status.value,
                         feedback.model_dump_json(),
                     ),
                 ).rowcount
+                if inserted:
+                    db.execute(
+                        "INSERT INTO feedback_changes (event) VALUES (?)",
+                        (feedback.model_dump_json(),),
+                    )
+                    result = feedback
+                else:
+                    (stored,) = db.execute(
+                        _BY_SCOPED_KEY, (feedback.idempotency_key, tenant or "")
+                    ).fetchone()
+                    result = FeedbackEvent.model_validate_json(stored)
+                db.execute("COMMIT")
             except sqlite3.IntegrityError as error:
+                db.execute("ROLLBACK")
                 raise FeedbackStoreError(
                     "a feedback event with this ID already exists",
                     feedback_id=feedback.feedback_id,
                 ) from error
-            if inserted:
-                return feedback
-            # The idempotency key is taken: return the event stored with it.
-            (stored,) = db.execute(_BY_KEY, (feedback.idempotency_key,)).fetchone()
-        return FeedbackEvent.model_validate_json(stored)
+        return result
 
     def _get(self, feedback_id: UUID) -> FeedbackEvent | None:
         with closing(self._connect()) as db:
@@ -174,6 +197,7 @@ class SQLiteFeedbackStore(FeedbackStore):
             "UPDATE feedback SET status = ?, event = ? WHERE feedback_id = ?",
             (status.value, updated.model_dump_json(), str(feedback_id)),
         )
+        db.execute("INSERT INTO feedback_changes (event) VALUES (?)", (updated.model_dump_json(),))
         return updated
 
     def _query(self, query: FeedbackQuery) -> list[FeedbackEvent]:
@@ -191,6 +215,29 @@ class SQLiteFeedbackStore(FeedbackStore):
                     if len(matches) == query.limit:
                         break
         return matches
+
+    async def read_changes(self, *, after: str | None, limit: int) -> FeedbackChangePage:
+        """Read the durable journal, including every committed lifecycle change."""
+        if limit < 1 or limit > 1000:
+            raise FeedbackStoreError("change-feed limit must be between 1 and 1000")
+        if after is not None and (not after.isascii() or not after.isdecimal()):
+            raise FeedbackStoreError("invalid change-feed cursor")
+
+        def read() -> FeedbackChangePage:
+            with closing(self._connect()) as db:
+                rows = db.execute(
+                    "SELECT position,event FROM feedback_changes WHERE position>? "
+                    "ORDER BY position LIMIT ?",
+                    (int(after or "0"), limit + 1),
+                ).fetchall()
+            page = rows[:limit]
+            return FeedbackChangePage(
+                events=tuple(FeedbackEvent.model_validate_json(row[1]) for row in page),
+                cursor=str(page[-1][0]) if page else after,
+                has_more=len(rows) > limit,
+            )
+
+        return await asyncio.to_thread(read)
 
 
 async def main() -> None:

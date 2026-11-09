@@ -1,0 +1,25 @@
+{
+  "skill_name": "feedback-manager-learning",
+  "queries": [
+    {"query": "make my agent learn from approved human corrections so it stops repeating mistakes", "should_trigger": true, "split": "train"},
+    {"query": "inject reviewed lessons from feedback-manager into my langgraph system prompt", "should_trigger": true, "split": "train"},
+    {"query": "learned artifacts stay as candidate and never become active", "should_trigger": true, "split": "train"},
+    {"query": "set up lancedb vector retrieval and ladybugdb graph retrieval for learned lessons", "should_trigger": true, "split": "train"},
+    {"query": "feedback-manager learning jobs are dead-lettered after a database outage", "should_trigger": true, "split": "train"},
+    {"query": "configure hybrid retrieval with a sentence-transformers embedding provider", "should_trigger": true, "split": "train"},
+    {"query": "retrieval returns nothing for my agent although artifacts exist", "should_trigger": true, "split": "validation"},
+    {"query": "make learning durable so feedback submitted while the worker was down is not lost", "should_trigger": true, "split": "validation"},
+    {"query": "share lessons across all agents of the same type in one tenant", "should_trigger": true, "split": "validation"},
+    {"query": "a correction was wrong, invalidate it and pull the lesson from production", "should_trigger": true, "split": "validation"},
+    {"query": "fine-tune gpt on our corrections dataset", "should_trigger": false, "split": "train"},
+    {"query": "record a thumbs-down rating from the chat ui", "should_trigger": false, "split": "train"},
+    {"query": "write a VectorStore for pgvector and make the contract kit pass", "should_trigger": false, "split": "train"},
+    {"query": "build a RAG pipeline over our product docs", "should_trigger": false, "split": "train"},
+    {"query": "train a reward model with RLHF", "should_trigger": false, "split": "train"},
+    {"query": "add long-term memory to my chatbot with mem0", "should_trigger": false, "split": "train"},
+    {"query": "link feedback to agxai provenance", "should_trigger": false, "split": "validation"},
+    {"query": "create a LanceDB table for image embeddings", "should_trigger": false, "split": "validation"},
+    {"query": "write a feedback-manager adapter for agno", "should_trigger": false, "split": "validation"},
+    {"query": "evaluate my agent on a benchmark dataset", "should_trigger": false, "split": "validation"}
+  ]
+}

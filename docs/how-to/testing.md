@@ -86,7 +86,7 @@ from langchain_core.tools import tool
 from langgraph.graph import END, START, StateGraph
 from langgraph.prebuilt import ToolNode
 
-from feedback_manager.integrations.langchain import FeedbackCallbackHandler
+from feedback_manager.integrations.frameworks.langchain import FeedbackCallbackHandler
 
 
 class State(TypedDict):
@@ -143,4 +143,8 @@ without waiting. See [expiring stale feedback](expire-feedback.md#testing-expiry
 
 ## Your own store
 
-Run the [store contract tests](custom-store.md#test-your-store) against it.
+Certify it with the public contract kit,
+[`FeedbackStoreContract`](../api/testing.md): subclass it and implement
+`make_store`. [Bring your own components](customize-components.md#certify-your-component)
+shows the kits for vector stores, graph stores, artifact repositories, job
+stores, and embedding providers.

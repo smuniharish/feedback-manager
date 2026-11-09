@@ -1,8 +1,9 @@
-"""feedback-manager: feedback infrastructure for LangChain and LangGraph applications.
+"""feedback-manager: feedback management and agent learning for any agent framework.
 
 Capture, correlate, store, route, and resolve feedback as a first-class domain
-concern. LangChain and LangGraph keep owning execution, state, checkpoints,
-interrupts, and streaming; feedback-manager owns the feedback about them.
+concern, and learn reviewed artifacts from it that agents can use later. Agent
+frameworks such as LangChain, LangGraph, or your own loop keep owning
+execution; adapters in `feedback_manager.integrations.frameworks` connect them.
 
 ```python
 from feedback_manager import FeedbackManager, FeedbackTarget, FeedbackTargetType
@@ -22,6 +23,7 @@ from importlib.metadata import PackageNotFoundError, version
 from feedback_manager.api.manager import FeedbackManager
 from feedback_manager.api.stream import FeedbackStream
 from feedback_manager.api.subscription import Subscription
+from feedback_manager.contracts.provenance import ProvenanceProvider
 from feedback_manager.contracts.store import FeedbackQuery
 from feedback_manager.core.categories import FeedbackCategory
 from feedback_manager.core.context import ExecutionContext
@@ -73,6 +75,7 @@ __all__ = [
     "FeedbackTarget",
     "FeedbackTargetType",
     "FeedbackValidationError",
+    "ProvenanceProvider",
     "Subscription",
     "__version__",
     "validate_transition",

@@ -52,7 +52,7 @@ Never commit credentials, local environments, or generated reports.
 ## Documentation and diagrams
 
 ```bash
-uv run mkdocs build --strict
+uv run zensical build --strict
 ```
 
 The documentation embeds the example sources, so a changed example changes its
@@ -70,9 +70,8 @@ node scripts/render-diagrams.mjs --check
 Commit a changed diagram source together with its rendered image and the
 updated `docs/assets/diagrams/manifest.json`.
 
-The site uses MkDocs 1.6 with Material for MkDocs 9.7, which is in maintenance
-mode until 2027-05-05. Plan the move to its successor,
-[Zensical](https://zensical.org/), before then.
+The site is built with [Zensical](https://zensical.org/) from `zensical.toml`.
+`uv run zensical serve` previews it with live reload.
 
 ## Pull requests
 

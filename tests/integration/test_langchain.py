@@ -27,13 +27,13 @@ from feedback_manager import (
     FeedbackTargetType,
     FeedbackValidationError,
 )
-from feedback_manager.integrations.langchain import (
+from feedback_manager.integrations.frameworks.langchain import (
     FeedbackCallbackHandler,
     callbacks,
     capture_tool_feedback,
     category_for_error,
 )
-from feedback_manager.integrations.langchain.failures import caused_by, is_reportable
+from feedback_manager.integrations.frameworks.langchain.failures import CLASSIFIER, caused_by
 from feedback_manager.storage import InMemoryFeedbackStore
 from tests.integration.doubles import FakeChatModel, FakeLLM, FakeRetriever
 
@@ -443,10 +443,8 @@ class TestCancellations:
         handler = FeedbackCallbackHandler(manager)
 
         for _ in range(3):
-            # LangChain reports no end for a cancelled top-level tool call.
-            with pytest.raises(TimeoutError):
-                async with asyncio.timeout(0.05):
-                    await wait_forever.ainvoke({"city": "Oslo"}, {"callbacks": [handler]})
+            # A top-level run whose end never arrives, as with a run abandoned mid-flight.
+            await handler.on_tool_start({"name": "wait_forever"}, "Oslo", run_id=uuid4())
 
         assert len(handler._trees) == len(handler._runs) == 2
         assert await _events(manager) == []
@@ -481,7 +479,7 @@ class TestFailureClassification:
         ],
     )
     def test_reportable(self, error: BaseException, reportable: bool) -> None:
-        assert is_reportable(error) is reportable
+        assert CLASSIFIER.is_reportable(error) is reportable
 
     def test_caused_by_follows_causes_contexts_and_groups(self) -> None:
         origin = ValueError("origin")
@@ -559,7 +557,9 @@ class TestCaptureToolFeedback:
         manager = FeedbackManager(store=DownStore())
 
         with (
-            caplog.at_level(logging.WARNING, logger="feedback_manager.integrations.langchain"),
+            caplog.at_level(
+                logging.WARNING, logger="feedback_manager.integrations.frameworks.langchain"
+            ),
             pytest.raises(ValueError, match="bad input") as raised,
         ):
             async with capture_tool_feedback(manager, tool_call_id="call-1"):

@@ -32,8 +32,8 @@ for a fix before disclosing the issue publicly.
 
 Out of scope:
 
-- vulnerabilities in LangChain, LangGraph, or `langgraph-xai`; please report
-  those to their projects;
+- vulnerabilities in LangChain, LangGraph, `agxai`, LanceDB, or LadybugDB;
+  please report those to their projects;
 - the security of stores, handlers, subscribers, and policies that applications
   implement themselves;
 - the local development credentials in `examples/compose.yaml`.

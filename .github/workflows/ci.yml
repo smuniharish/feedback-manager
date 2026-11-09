@@ -21,11 +21,11 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
         with:
           python-version: "3.14"
           enable-cache: true
-      - run: uv sync --locked --all-groups
+      - run: uv sync --locked --all-groups --all-extras
       - run: uv run ruff check .
       - run: uv run ruff format --check .
       - run: uv run pyrefly check
@@ -37,21 +37,23 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest]
-        python-version: ["3.12", "3.13", "3.14"]
+        python-version: ["3.12", "3.13", "3.14", "3.15"]
         include:
           - os: macos-latest
             python-version: "3.14"
     env:
       HYPOTHESIS_PROFILE: ci
+      # LanceDB and LadybugDB publish no Python 3.15 wheels yet; see [tool.coverage.run].
+      FEEDBACK_MANAGER_OMIT_DATABASE_EXTRAS: ${{ matrix.python-version == '3.15' && '*' || 'unset' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
         with:
           python-version: ${{ matrix.python-version }}
           enable-cache: true
-      - run: uv sync --locked --all-groups
+      - run: uv sync --locked --all-groups --all-extras
       # Warnings are errors (pyproject.toml), and coverage must stay at 100%.
       - run: uv run pytest --cov --cov-report=term-missing
 
@@ -62,11 +64,11 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
         with:
           python-version: "3.12"
           enable-cache: true
-      - run: uv sync --resolution lowest-direct --all-groups
+      - run: uv sync --resolution lowest-direct --all-groups --all-extras
       - run: uv run --no-sync pytest
 
   postgres:
@@ -94,11 +96,11 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
         with:
           python-version: "3.14"
           enable-cache: true
-      - run: uv sync --locked --all-groups
+      - run: uv sync --locked --all-groups --all-extras
       - run: uv run pytest -m postgres
       - run: uv run python examples/postgres_feedback_store.py
       - run: uv run python examples/12_organic_scenarios_postgres.py
@@ -111,7 +113,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
         with:
           python-version: "3.14"
           enable-cache: true
@@ -120,8 +122,15 @@ jobs:
       - name: Install the wheel into a clean environment and run the setup check
         run: |
           uv venv --no-project "$RUNNER_TEMP/wheel"
-          uv pip install --python "$RUNNER_TEMP/wheel" dist/*.whl
+          wheel=$(ls dist/*.whl)
+          uv pip install --python "$RUNNER_TEMP/wheel" "${wheel}[langchain]"
           "$RUNNER_TEMP/wheel/bin/python" feedback-manager-skills/skills/feedback-manager/scripts/verify_setup.py
+      - name: Install the core wheel without extras and check it imports no framework
+        run: |
+          uv venv --no-project "$RUNNER_TEMP/core"
+          uv pip install --python "$RUNNER_TEMP/core" dist/*.whl
+          "$RUNNER_TEMP/core/bin/python" -c "import sys, feedback_manager, feedback_manager.integrations.frameworks.custom; assert 'langchain_core' not in sys.modules and 'langgraph' not in sys.modules"
+          "$RUNNER_TEMP/core/bin/python" examples/14_custom_agent.py
 
   docs:
     name: Documentation
@@ -130,13 +139,55 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
         with:
           python-version: "3.14"
           enable-cache: true
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: "24"
-      - run: uv sync --locked --group docs
-      - run: uv run mkdocs build --strict
+      - run: uv sync --locked --group docs --all-extras
+      - run: uv run zensical build --strict
+      - run: uv run python scripts/check_site_links.py
       - run: node scripts/render-diagrams.mjs --check
+
+  extras:
+    name: Isolated optional extra (${{ matrix.extra }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        extra: [langchain, lancedb, ladybugdb, otel]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          python-version: "3.12"
+      - run: uv sync --locked --no-default-groups --extra "${{ matrix.extra }}"
+      - name: Verify the selected adapter imports independently
+        env:
+          FEEDBACK_MANAGER_EXTRA: ${{ matrix.extra }}
+        run: |
+          uv run --no-sync python -c "import importlib, os; names = {'langchain': 'feedback_manager.integrations.frameworks.langchain', 'lancedb': 'feedback_manager.storage.vector.lancedb', 'ladybugdb': 'feedback_manager.storage.graph.ladybug', 'otel': 'feedback_manager.observability.otel'}; importlib.import_module(names[os.environ['FEEDBACK_MANAGER_EXTRA']])"
+
+  deployment:
+    name: Container and persistent restart smoke
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - run: docker compose -f deploy/compose.yaml config --quiet
+      - run: docker build -f deploy/Containerfile -t localhost/feedback-manager-learning:0.1.2 .
+      - name: Run twice against the same synthetic state volume
+        run: |
+          docker volume create feedback-manager-ci-state
+          for attempt in 1 2; do
+            docker run --rm --read-only --cap-drop=ALL --security-opt=no-new-privileges \
+              --tmpfs /tmp:rw,noexec,nosuid,size=256m \
+              -v feedback-manager-ci-state:/data localhost/feedback-manager-learning:0.1.2
+          done
+      - if: always()
+        run: docker volume rm feedback-manager-ci-state

@@ -1,0 +1,19 @@
+services:
+  learning-smoke:
+    build:
+      context: ..
+      dockerfile: deploy/Containerfile
+    image: localhost/feedback-manager-learning:0.1.2
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=256m
+    volumes:
+      - learning-state:/data
+    restart: "no"
+    mem_limit: 2g
+    cpus: 2
+    pids_limit: 256
+volumes:
+  learning-state:

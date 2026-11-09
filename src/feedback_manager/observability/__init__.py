@@ -15,6 +15,7 @@ from feedback_manager.observability.hooks import (
     ObservabilityEvent,
     ObservabilitySink,
 )
+from feedback_manager.observability.operations import OperationObserver
 
 __all__ = [
     "FEEDBACK_ACKNOWLEDGED",
@@ -30,4 +31,5 @@ __all__ = [
     "NoOpObservabilitySink",
     "ObservabilityEvent",
     "ObservabilitySink",
+    "OperationObserver",
 ]

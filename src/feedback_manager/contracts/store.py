@@ -37,6 +37,8 @@ class FeedbackQuery:
         created_before: Only events created before this time (timezone-aware).
         newest_first: Return the newest events first instead of the oldest.
         limit: Return at most this many events (a positive integer).
+        tenant_id: Match the tenant in execution context before applying the limit.
+        unscoped_only: Match only records without a tenant; cannot accompany tenant_id.
 
     Raises:
         FeedbackValidationError: If a status is unknown, a time is naive or
@@ -54,8 +56,12 @@ class FeedbackQuery:
     created_before: datetime | None = None
     newest_first: bool = False
     limit: int | None = None
+    tenant_id: str | None = None
+    unscoped_only: bool = False
 
     def __post_init__(self) -> None:
+        if self.tenant_id is not None and (not self.tenant_id.strip() or self.unscoped_only):
+            raise FeedbackValidationError("tenant_id must be non-empty and cannot be unscoped_only")
         if self.status is not None:
             try:
                 status = FeedbackStatus(self.status)
@@ -81,6 +87,18 @@ class FeedbackQuery:
         """Return whether ``event`` satisfies every set filter (``limit`` and order aside)."""
         return (
             (self.source is None or event.source == self.source)
+            and (
+                self.tenant_id is None
+                or (
+                    event.execution_context is not None
+                    and event.execution_context.tenant_id == self.tenant_id
+                )
+            )
+            and (
+                not self.unscoped_only
+                or event.execution_context is None
+                or event.execution_context.tenant_id is None
+            )
             and (self.category is None or event.category == self.category)
             and (self.target_type is None or event.target.type == self.target_type)
             and (self.target_id is None or event.target.id == self.target_id)
@@ -103,11 +121,11 @@ class FeedbackStore(ABC):
 
     @abstractmethod
     async def create(self, feedback: FeedbackEvent) -> FeedbackEvent:
-        """Store a new event, deduplicating by ``idempotency_key``.
+        """Store a new event, deduplicating by tenant and ``idempotency_key``.
 
         Returns:
             ``feedback``, or the event already stored with the same
-            ``idempotency_key``, unchanged.
+            ``idempotency_key`` in the same tenant (or unscoped partition), unchanged.
 
         Raises:
             FeedbackStoreError: If an event with the same ``feedback_id`` exists.

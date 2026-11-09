@@ -19,7 +19,7 @@ from langgraph.graph import END, START, StateGraph
 from langgraph.prebuilt import ToolNode
 
 from feedback_manager import FeedbackManager
-from feedback_manager.integrations.langchain import FeedbackCallbackHandler
+from feedback_manager.integrations.frameworks.langchain import FeedbackCallbackHandler
 
 
 class State(TypedDict):

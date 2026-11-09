@@ -1,0 +1,45 @@
+{
+  "skill_name": "feedback-manager-learning",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "bot.py records reviewer corrections, but the bot keeps repeating the same mistakes. Make it learn from corrections: reviewed lessons should reach the prompt on later runs, and nothing unreviewed may ever reach a customer. Add tests.",
+      "expected_output": "Gives the manager a LearningEngine on an artifact repository, scopes feedback by tenant and agent, drains the background learner, keeps a manual review step (request_review, review, activate), retrieves with RetrievalRequest for the same scope, injects the rendered context into build_prompt, and tests that an unreviewed candidate is never injected and a reviewed one is.",
+      "files": ["files/support_bot/bot.py"],
+      "assertions": [
+        "FeedbackManager receives a LearningEngine (learning_engine=) backed by an ArtifactRepository",
+        "Feedback carries the tenant and agent_id so artifacts are scoped",
+        "No code path calls review(..., approved=True) without a human reviewer identity",
+        "build_prompt adds the learned context only when the injector returns something",
+        "A test shows a single correction yields a candidate that is not retrieved",
+        "A test shows that after independent evidence, review, and activation, the lesson is retrieved for the same tenant and agent and not for another tenant"
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "In production our learning jobs keep ending up dead-lettered after a LanceDB outage, and after a restart we lost feedback that was submitted while the worker was down. How do we make learning durable and recover?",
+      "expected_output": "Explains durable components (a durable artifact repository, a durable LearningJobStore, and an atomic FeedbackChangeSource), require_durable_learning=True, entering async with manager to recover, and replay_dead_letters after the outage, with RetryPolicy tuning.",
+      "files": [],
+      "assertions": [
+        "Recommends require_durable_learning=True with a durable repository, job store, and change source",
+        "Explains that async with manager (or start) runs recovery and reconciliation of missed feedback",
+        "Uses background_learner.replay_dead_letters to reprocess dead-lettered jobs after the outage",
+        "Mentions RetryPolicy attempts and delays for transient outages",
+        "Does not suggest disabling review or validation to clear the backlog"
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "Retrieval returns nothing for our agent even though I can see artifacts in the repository. What should I check?",
+      "expected_output": "Walks through artifact status (only ACTIVE is retrieved), scope mismatch (tenant, namespace, agent_id, visibility), validation thresholds (min_independent_evidence, min_confidence), and the retrieval strategy and stores, with a concrete diagnostic snippet.",
+      "files": [],
+      "assertions": [
+        "Checks that the artifacts are ACTIVE rather than CANDIDATE, UNDER_REVIEW, or VALIDATED",
+        "Checks that the RetrievalRequest scope matches the artifact scope, tenant, and agent",
+        "Mentions LearningValidationConfig thresholds as the reason artifacts may not have advanced",
+        "Suggests querying the repository with an ArtifactQuery to inspect status and scope",
+        "Does not recommend lowering validation thresholds to zero in production"
+      ]
+    }
+  ]
+}

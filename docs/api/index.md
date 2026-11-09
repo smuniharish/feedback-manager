@@ -10,7 +10,7 @@ The complete public API, generated from the source code's docstrings.
 | [`feedback_manager.routing`](routing.md) and [`.handlers`](routing.md#bundled-handlers) | Rule-based routing and the audit handler. |
 | [`feedback_manager.policies`](policies.md) | Failure isolation and retention. |
 | [`feedback_manager.observability`](observability.md) | Observability events and sinks. |
-| [`feedback_manager.integrations`](integrations.md) | LangChain, LangGraph, and `langgraph-xai` integrations. |
+| [`feedback_manager.integrations`](integrations.md) | LangChain, LangGraph, and `agxai` integrations. |
 | [`feedback_manager.errors`](errors.md) | The exception hierarchy. |
 
 The top-level package re-exports what most applications need:

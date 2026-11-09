@@ -11,13 +11,17 @@ from typing import TYPE_CHECKING, Any, Self
 from pydantic import ConfigDict, TypeAdapter, ValidationError
 
 from feedback_manager import _logging
+from feedback_manager.api.scoped import TenantFeedbackManager
 from feedback_manager.api.stream import FeedbackStream
 from feedback_manager.api.subscription import Subscription
+from feedback_manager.contracts.changes import FeedbackChangeSource
 from feedback_manager.contracts.correlator import FeedbackCorrelator
 from feedback_manager.contracts.handler import FeedbackHandler, FeedbackHandlerResult
 from feedback_manager.contracts.policy import FeedbackLifecyclePolicy, FeedbackRedactionPolicy
+from feedback_manager.contracts.provenance import ProvenanceProvider
 from feedback_manager.contracts.router import FeedbackRouter
 from feedback_manager.contracts.store import FeedbackQuery, FeedbackStore
+from feedback_manager.contracts.subscriber import FeedbackSubscriber, FunctionSubscriber
 from feedback_manager.core._types import JsonObject
 from feedback_manager.core.events import FeedbackEvent
 from feedback_manager.core.lifecycle import validate_transition
@@ -35,6 +39,14 @@ from feedback_manager.errors import (
     FeedbackStoreError,
     FeedbackValidationError,
 )
+from feedback_manager.learning.engine import LearningEngine
+from feedback_manager.learning.jobs import InMemoryLearningJobStore, LearningJobStore
+from feedback_manager.learning.worker import (
+    BackgroundLearner,
+    ContextScopeResolver,
+    ScopeResolver,
+    as_scope_resolver,
+)
 from feedback_manager.observability.hooks import (
     FEEDBACK_ACKNOWLEDGED,
     FEEDBACK_CANCELLED,
@@ -51,6 +63,7 @@ from feedback_manager.observability.hooks import (
 )
 from feedback_manager.policies.failure import FailurePolicy, FeedbackStage
 from feedback_manager.routing.default_router import DefaultFeedbackRouter
+from feedback_manager.storage.artifacts.memory import InMemoryArtifactRepository
 from feedback_manager.storage.memory import InMemoryFeedbackStore
 
 if TYPE_CHECKING:
@@ -59,14 +72,11 @@ if TYPE_CHECKING:
     from types import TracebackType
     from uuid import UUID
 
-    from langgraph_xai import XAIRuntime
-
-    from feedback_manager.contracts.subscriber import FeedbackSubscriber
     from feedback_manager.core.categories import FeedbackCategory
     from feedback_manager.core.context import ExecutionContext
     from feedback_manager.core.sources import FeedbackSource
     from feedback_manager.core.targets import FeedbackTarget
-    from feedback_manager.integrations.xai.adapter import XAIProvenanceAdapter
+    from feedback_manager.learning.models import ArtifactScope
     from feedback_manager.policies.retention import RetentionPolicy
 
 _logger = _logging.get_logger("feedback_manager.manager")
@@ -108,14 +118,24 @@ class FeedbackManager:
         router: Selects handlers for new feedback. Defaults to a
             `DefaultFeedbackRouter` without rules, which routes nothing.
         correlator: Assigns correlation IDs. Defaults to `DefaultFeedbackCorrelator`.
-        xai_runtime: A ``langgraph_xai.XAIRuntime``. When given, new feedback
-            gets a `FeedbackProvenanceReference` to the run it refers to.
+        provenance_provider: Resolves where new feedback came from, for
+            example `AgxaiProvenanceProvider`. When given, new feedback gets a
+            `FeedbackProvenanceReference` to the run it refers to.
         lifecycle_policy: Business rules checked before every transition.
         redaction_policy: Redacts new feedback before it is processed or stored.
         failure_policy: The failure mode of each processing stage. Defaults to
             best-effort for every stage.
         observability_sink: Receives observability events. Defaults to
             `LoggingObservabilitySink`.
+        learning: Enable automatic, process-local learning by default. Artifacts
+            remain candidates until explicitly reviewed and activated.
+        learning_engine: Optional engine with an application-supplied artifact repository.
+        learning_job_store: Optional durable queue. Defaults to in-memory jobs.
+        learning_scope_resolver: Trusted scope resolver. By default feedback without
+            a tenant is skipped and counted, never assigned a guessed tenant.
+        learning_change_source: Optional atomic replay feed; inferred from a compatible store.
+        require_durable_learning: Reject non-durable artifact/queue or missing
+            change-feed providers.
 
     Raises:
         FeedbackConfigurationError: If a collaborator has the wrong type.
@@ -127,31 +147,53 @@ class FeedbackManager:
         store: FeedbackStore | None = None,
         router: FeedbackRouter | None = None,
         correlator: FeedbackCorrelator | None = None,
-        xai_runtime: XAIRuntime | None = None,
+        provenance_provider: ProvenanceProvider | None = None,
         lifecycle_policy: FeedbackLifecyclePolicy | None = None,
         redaction_policy: FeedbackRedactionPolicy | None = None,
         failure_policy: FailurePolicy | None = None,
         observability_sink: ObservabilitySink | None = None,
+        learning: bool = True,
+        learning_engine: LearningEngine | None = None,
+        learning_job_store: LearningJobStore | None = None,
+        learning_scope_resolver: ScopeResolver
+        | Callable[[FeedbackEvent], ArtifactScope | None]
+        | None = None,
+        learning_change_source: FeedbackChangeSource | None = None,
+        require_durable_learning: bool = False,
     ) -> None:
         for value, expected, name in (
             (store, FeedbackStore, "store"),
             (router, FeedbackRouter, "router"),
             (correlator, FeedbackCorrelator, "correlator"),
+            (provenance_provider, ProvenanceProvider, "provenance_provider"),
             (lifecycle_policy, FeedbackLifecyclePolicy, "lifecycle_policy"),
             (redaction_policy, FeedbackRedactionPolicy, "redaction_policy"),
             (failure_policy, FailurePolicy, "failure_policy"),
             (observability_sink, ObservabilitySink, "observability_sink"),
+            (learning_engine, LearningEngine, "learning_engine"),
+            (learning_job_store, LearningJobStore, "learning_job_store"),
+            (learning_change_source, FeedbackChangeSource, "learning_change_source"),
         ):
             if value is not None and not isinstance(value, expected):
                 raise FeedbackConfigurationError(
                     f"{name} must be a {expected.__name__}, not {type(value).__name__}"
                 )
+        if not isinstance(learning, bool) or not isinstance(require_durable_learning, bool):
+            raise FeedbackConfigurationError("learning flags must be booleans")
+        scope_resolver: ScopeResolver = ContextScopeResolver()
+        if learning_scope_resolver is not None:
+            try:
+                scope_resolver = as_scope_resolver(learning_scope_resolver)
+            except TypeError:
+                raise FeedbackConfigurationError(
+                    "learning_scope_resolver must be a ScopeResolver or a callable"
+                ) from None
         self._store: FeedbackStore = store if store is not None else InMemoryFeedbackStore()
         self._router: FeedbackRouter = router if router is not None else DefaultFeedbackRouter()
         self._correlator: FeedbackCorrelator = (
             correlator if correlator is not None else DefaultFeedbackCorrelator()
         )
-        self._provenance = None if xai_runtime is None else _provenance_adapter(xai_runtime)
+        self._provenance = provenance_provider
         self._lifecycle_policy = lifecycle_policy
         self._redaction_policy = redaction_policy
         self._failure_policy = failure_policy if failure_policy is not None else FailurePolicy()
@@ -161,8 +203,43 @@ class FeedbackManager:
         self._lock = threading.Lock()
         self._subscribers: dict[object, FeedbackSubscriber] = {}
         self._streams: set[FeedbackStream] = set()
+        if require_durable_learning and not learning:
+            raise FeedbackConfigurationError("durable learning cannot be requested when disabled")
+        self.learning_engine = (
+            (
+                learning_engine
+                if learning_engine is not None
+                else LearningEngine(InMemoryArtifactRepository())
+            )
+            if learning
+            else None
+        )
+        self.background_learner = (
+            BackgroundLearner(
+                self,
+                self.learning_engine,
+                learning_job_store
+                if learning_job_store is not None
+                else InMemoryLearningJobStore(),
+                scope_resolver=scope_resolver,
+                change_source=(
+                    learning_change_source
+                    if learning_change_source is not None
+                    else self._store
+                    if isinstance(self._store, FeedbackChangeSource)
+                    else None
+                ),
+                require_durable=require_durable_learning,
+            )
+            if self.learning_engine is not None
+            else None
+        )
 
     # -- submission ------------------------------------------------------------
+
+    def for_tenant(self, tenant_id: str) -> TenantFeedbackManager:
+        """Return an isolated facade for a tenant authenticated by the host."""
+        return TenantFeedbackManager(self, tenant_id)
 
     async def submit(
         self,
@@ -178,8 +255,8 @@ class FeedbackManager:
     ) -> FeedbackEvent:
         """Submit new feedback.
 
-        The feedback is redacted, correlated, linked to ``langgraph-xai``
-        provenance when available, stored as ``RECEIVED``, published to
+        The feedback is redacted, correlated, linked to its provenance when a
+        `ProvenanceProvider` is configured, stored as ``RECEIVED``, published to
         subscribers and streams, and routed to handlers. Correlation,
         provenance, routing, handler, and subscriber failures follow the
         `FailurePolicy`; a store failure always propagates.
@@ -214,17 +291,25 @@ class FeedbackManager:
             idempotency_key=idempotency_key,
             feedback_type=feedback_type,
         )
+        tenant = None if event.execution_context is None else event.execution_context.tenant_id
         if event.idempotency_key is not None:
             replayed = await self._call_store(
                 partial(
                     self._store.query,
-                    FeedbackQuery(idempotency_key=event.idempotency_key, limit=1),
+                    FeedbackQuery(
+                        idempotency_key=event.idempotency_key,
+                        limit=1,
+                        tenant_id=tenant,
+                        unscoped_only=tenant is None,
+                    ),
                 ),
                 event=event,
             )
             if replayed:
+                self._check_submission_tenant(replayed[0], tenant)
                 return replayed[0]
         event = self._redact(event)
+        self._check_submission_tenant(event, tenant)
         on_error = partial(self._report_failure, event)
         correlation_id = await self._failure_policy.run_stage(
             FeedbackStage.CORRELATION,
@@ -248,6 +333,7 @@ class FeedbackManager:
             }
         )
         stored = await self._call_store(partial(self._store.create, received), event=received)
+        self._check_submission_tenant(stored, tenant)
         if stored.feedback_id != received.feedback_id:
             return stored
         self._emit(FEEDBACK_RECEIVED, stored)
@@ -392,11 +478,15 @@ class FeedbackManager:
 
     # -- push delivery ---------------------------------------------------------
 
-    def subscribe(self, subscriber: FeedbackSubscriber) -> Subscription:
+    def subscribe(
+        self,
+        subscriber: FeedbackSubscriber | Callable[[FeedbackEvent], Awaitable[None]],
+    ) -> Subscription:
         """Call ``subscriber`` with every new event and every lifecycle change.
 
         Subscribers run one after another in the task that changed the
-        feedback; failures follow the ``SUBSCRIBER`` failure mode.
+        feedback; failures follow the ``SUBSCRIBER`` failure mode. A plain
+        ``async def`` function is wrapped in `FunctionSubscriber`.
 
         Returns:
             A handle that stops the notifications when cancelled.
@@ -404,8 +494,12 @@ class FeedbackManager:
         Raises:
             FeedbackConfigurationError: If ``subscriber`` is not callable.
         """
-        if not callable(subscriber):
-            raise FeedbackConfigurationError("subscriber must be an async callable")
+        if not isinstance(subscriber, FeedbackSubscriber):
+            if not callable(subscriber):
+                raise FeedbackConfigurationError(
+                    "subscriber must be a FeedbackSubscriber or an async callable"
+                )
+            subscriber = FunctionSubscriber(subscriber)
         token = object()
         with self._lock:
             self._subscribers[token] = subscriber
@@ -431,15 +525,26 @@ class FeedbackManager:
     async def aclose(self) -> None:
         """Close every open stream, so their consumers stop after the delivered events.
 
-        The manager stays usable. The store is not closed: it belongs to the
-        application.
+        Drain due learning jobs and stop automatic processing. The manager stays
+        usable; submitting more feedback restarts learning. Collaborator stores
+        are not closed: they belong to the application. Delayed retries remain
+        queued for the next start.
         """
         with self._lock:
             streams = tuple(self._streams)
         for stream in streams:
             await stream.aclose()
+        if self.background_learner is not None:
+            await self.background_learner.stop()
+            await self.background_learner.drain()
 
     async def __aenter__(self) -> Self:
+        if (
+            self.background_learner is not None
+            and self.background_learner.change_source is not None
+            and not self.background_learner.running
+        ):
+            await self.background_learner.start(subscribe=False)
         return self
 
     async def __aexit__(
@@ -578,6 +683,13 @@ class FeedbackManager:
         return handlers
 
     async def _publish(self, event: FeedbackEvent) -> None:
+        if self.background_learner is not None:
+            await self._failure_policy.run_stage(
+                FeedbackStage.SUBSCRIBER,
+                partial(self._enqueue_learning, event),
+                feedback_id=event.feedback_id,
+                on_error=partial(self._report_failure, event),
+            )
         with self._lock:
             streams = tuple(self._streams)
             subscribers = tuple(self._subscribers.values())
@@ -591,6 +703,18 @@ class FeedbackManager:
                 feedback_id=event.feedback_id,
                 on_error=on_error,
             )
+
+    async def _enqueue_learning(self, event: FeedbackEvent) -> None:
+        assert self.background_learner is not None
+        job = await self.background_learner.enqueue(event)
+        if job is not None and not self.background_learner.running:
+            await self.background_learner.start(subscribe=False)
+
+    @staticmethod
+    def _check_submission_tenant(event: FeedbackEvent, tenant: str | None) -> None:
+        actual = None if event.execution_context is None else event.execution_context.tenant_id
+        if actual != tenant:
+            raise FeedbackStoreError("feedback store returned a record from another tenant")
 
     async def _call_store[T](
         self, operation: Callable[[], Awaitable[T]], *, event: FeedbackEvent | None = None
@@ -663,19 +787,6 @@ async def _handle(handler: FeedbackHandler, event: FeedbackEvent) -> bool:
             "not a FeedbackHandlerResult"
         )
     return result.handled
-
-
-def _provenance_adapter(runtime: XAIRuntime) -> XAIProvenanceAdapter:
-    # Imported here so that `import feedback_manager` does not load langgraph-xai.
-    from langgraph_xai import XAIRuntime
-
-    from feedback_manager.integrations.xai.adapter import XAIProvenanceAdapter
-
-    if not isinstance(runtime, XAIRuntime):
-        raise FeedbackConfigurationError(
-            f"xai_runtime must be a langgraph_xai.XAIRuntime, not {type(runtime).__name__}"
-        )
-    return XAIProvenanceAdapter(runtime)
 
 
 def _build_event(**fields: Any) -> FeedbackEvent:

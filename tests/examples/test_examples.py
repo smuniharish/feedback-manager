@@ -31,6 +31,10 @@ SELF_CONTAINED = {
     "09_override_defaults.py": "lifecycle_policy:   assign a reviewer before resolving",
     "10_full_matrix_feedback.py": "Distinct combinations stored: 1560 of 1560",
     "sqlite_feedback_store.py": "After reopening: resolved, resolution={'reviewed': True}",
+    "13_basic_learning.py": "evidence=2",
+    "14_custom_agent.py": "Retry search once before asking a person.",
+    "15_background_learning.py": "evidence: 2; other-agent results: 0",
+    "16_custom_components.py": "Certified CountingFeedbackStore: 6 contract tests passed",
 }
 
 
@@ -38,8 +42,13 @@ SELF_CONTAINED = {
 def test_example_runs(script: str, expected: str) -> None:
     if script.startswith("10_"):
         pytest.importorskip("psycopg", reason="needs the examples dependency group")
+    if script.startswith(("15_", "16_")):
+        pytest.importorskip("lancedb")
+        pytest.importorskip("ladybug")
     environment = {
-        key: value for key, value in os.environ.items() if key != "FEEDBACK_MANAGER_POSTGRES_DSN"
+        key: value
+        for key, value in os.environ.items()
+        if key not in ("FEEDBACK_MANAGER_POSTGRES_DSN", "FEEDBACK_MANAGER_STATE_DIR")
     }
 
     # Runs this repository's own example with the current interpreter.

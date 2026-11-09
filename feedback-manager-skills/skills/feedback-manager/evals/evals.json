@@ -1,0 +1,47 @@
+{
+  "skill_name": "feedback-manager",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "agent.py is our plain-Python refund agent. Add feedback-manager so every gateway failure in issue_refund and every supervisor decision is recorded against the run, and add tests that prove it.",
+      "expected_output": "agent.py creates one FeedbackManager, records the PaymentGatewayError as tool feedback with capture_tool_feedback or submit tied to an ExecutionContext with the run ID, records the supervisor approval or refusal as human feedback, keeps the agent's return values unchanged, and adds pytest tests against an in-memory manager.",
+      "files": [
+        "files/refund_agent/agent.py"
+      ],
+      "assertions": [
+        "A single FeedbackManager is created and reused rather than one per call",
+        "The gateway failure is recorded with source tool (or via capture_tool_feedback) and an ExecutionContext carrying run_id",
+        "The supervisor decision is recorded with source human and the request's run ID",
+        "Feedback is submitted with an idempotency_key so a retried run does not duplicate it",
+        "run() still returns declined, failed, or the refund ID exactly as before",
+        "Tests query the manager and assert the recorded feedback, without network access"
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "Ratings from our LangGraph chat app go into feedback-manager, but when the same user clicks the thumbs-up twice we get two events, and our triage job fails with FeedbackLifecycleError: illegal feedback lifecycle transition received -> resolved. Fix both without losing any feedback.",
+      "expected_output": "Explains that each click is a new submission unless it shares an idempotency_key and adds a stable key derived from the message and user; explains that feedback must move received -> acknowledged -> handled -> resolved, and changes the triage job to call acknowledge and mark_handled before resolve instead of weakening the lifecycle.",
+      "files": [],
+      "assertions": [
+        "Adds an idempotency_key built from stable identifiers such as the message ID and user ID",
+        "Explains that the duplicate submit returns the existing event rather than raising",
+        "Identifies that resolved is only reachable from handled, so acknowledge and mark_handled must come first",
+        "Does not replace the lifecycle policy or store to allow skipping statuses",
+        "Uses execution_context_from_config or an explicit ExecutionContext for the LangGraph run"
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "Our auditors want each piece of feedback linked to the agxai decision it is about. Our LangGraph app is already instrumented with an agxai XAIRuntime. Wire it up so feedback carries provenance, and prove it in a test.",
+      "expected_output": "Reuses the application's existing XAIRuntime in AgxaiProvenanceProvider(runtime), passes it to FeedbackManager(provenance_provider=...), submits feedback with the run's execution context during or after the instrumented run, and asserts feedback.provenance in a test.",
+      "files": [],
+      "assertions": [
+        "Reuses the existing XAIRuntime instead of creating a second runtime or store",
+        "Uses AgxaiProvenanceProvider from feedback_manager.integrations.provenance",
+        "Passes the provider to FeedbackManager(provenance_provider=...)",
+        "Submits feedback with an ExecutionContext whose run_id matches the instrumented run",
+        "A test asserts feedback.provenance is not None"
+      ]
+    }
+  ]
+}

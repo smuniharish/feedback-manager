@@ -9,6 +9,7 @@ import pytest
 from hypothesis import HealthCheck, settings
 
 from feedback_manager import FeedbackManager, FeedbackTarget, FeedbackTargetType
+from feedback_manager.observability import ObservabilitySink
 
 if TYPE_CHECKING:
     from feedback_manager.observability import ObservabilityEvent
@@ -34,7 +35,7 @@ settings.register_profile(
 settings.load_profile(os.getenv("HYPOTHESIS_PROFILE", "default"))
 
 
-class RecordingSink:
+class RecordingSink(ObservabilitySink):
     """An observability sink that keeps every event, for assertions."""
 
     def __init__(self) -> None:

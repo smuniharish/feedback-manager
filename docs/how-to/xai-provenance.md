@@ -1,6 +1,6 @@
 # Link feedback to provenance
 
-[langgraph-xai](https://github.com/smuniharish/langgraph-xai) records what a
+[agxai](https://pypi.org/project/agxai/) records what a
 LangGraph run did and why: node and tool executions, human interactions,
 decisions, and the evidence behind them. This guide links feedback to those
 records, so that "this refund was wrongly routed" points at the exact run,
@@ -12,12 +12,13 @@ Create one `XAIRuntime`, instrument your graph with it, and give the same
 runtime to the manager:
 
 ```python
-from langgraph_xai import XAIRuntime
+from agxai import XAIRuntime
 
 from feedback_manager import FeedbackManager
+from feedback_manager.integrations.provenance import AgxaiProvenanceProvider
 
 xai = XAIRuntime(application_id="support-bot", tenant_id="acme", graph_id="refunds")
-manager = FeedbackManager(xai_runtime=xai)
+manager = FeedbackManager(provenance_provider=AgxaiProvenanceProvider(xai))
 
 graph = xai.instrument(builder.compile())
 ```
@@ -25,14 +26,14 @@ graph = xai.instrument(builder.compile())
 ## 2. Feedback during the run
 
 Inside a node, build the execution context from the node's config. It carries
-the `langgraph-xai` run ID, so the feedback refers to the active run, including
+the `agxai` run ID, so the feedback refers to the active run, including
 its latest decision and the evidence behind it.
 
 ```python
 from langchain_core.runnables import RunnableConfig
 
 from feedback_manager import FeedbackCategory, FeedbackSource, FeedbackTarget, FeedbackTargetType
-from feedback_manager.integrations.langgraph import execution_context_from_config
+from feedback_manager.integrations.frameworks.langchain import execution_context_from_config
 
 
 async def report(state: State, config: RunnableConfig) -> State:
@@ -81,10 +82,10 @@ the generated answer, so later feedback can refer to it.
 [Example 06](../examples/basics.md#06-provenance) runs both cases:
 
 ```text
-In-run feedback provenance: langgraph-xai run 273fa0c7-a518-454b-bf0b-652ebcc037fe (running): 1 node execution(s), 0 tool execution(s)
+In-run feedback provenance: agxai run 273fa0c7-a518-454b-bf0b-652ebcc037fe (running): 1 node execution(s), 0 tool execution(s)
   decision=583a7e1d-0333-4782-a336-0f7e8ab93cff
   evidence=('b675f115-2902-4de0-9fed-388f412f28a8',)
-Post-run feedback provenance: langgraph-xai run 273fa0c7-a518-454b-bf0b-652ebcc037fe (completed): 2 node execution(s), 0 tool execution(s)
+Post-run feedback provenance: agxai run 273fa0c7-a518-454b-bf0b-652ebcc037fe (completed): 2 node execution(s), 0 tool execution(s)
   node execution=6e6ec809-68b3-4a34-aebe-1e685eb9304d
 ```
 
@@ -96,7 +97,7 @@ Post-run feedback provenance: langgraph-xai run 273fa0c7-a518-454b-bf0b-652ebcc0
 | `node_execution_id` | For nodes that already finished | Yes |
 | `tool_execution_id` | For tool calls that already finished | Yes |
 | `human_interaction_id` | For pauses and resumes already recorded | Yes |
-| `decision_id`, `evidence_ids` | Yes | No: `langgraph-xai` does not store them |
+| `decision_id`, `evidence_ids` | Yes | No: `agxai` does not store them |
 
 Capture feedback about a decision while the run is active if you need the
 decision and evidence IDs; [provenance](../concepts/provenance.md) explains why.

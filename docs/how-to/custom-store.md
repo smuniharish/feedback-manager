@@ -79,13 +79,34 @@ Ratings stored: 1
 
 ## Test your store
 
-Run the same checks the bundled stores pass: create and duplicates,
-concurrent idempotent creates, compare-and-set transitions, resolutions,
-queries compared against `InMemoryFeedbackStore`, and concurrent lifecycle
-calls through a manager. The repository's
-[store contract tests](https://github.com/smuniharish/feedback-manager/blob/master/tests/examples/test_stores.py)
-run them against both example stores; add your store to their fixture or copy
-them into your project.
+Subclass the public contract kit and return your store from `make_store`.
+pytest then runs the checks every bundled store passes: create and duplicates,
+concurrent idempotent creates, compare-and-set transitions, resolutions, and
+queries:
+
+```python
+from pathlib import Path
+
+import pytest
+
+from feedback_manager.testing import FeedbackStoreContract
+
+from sqlite_feedback_store import SQLiteFeedbackStore
+
+
+class TestSQLiteFeedbackStore(FeedbackStoreContract):
+    @pytest.fixture(autouse=True)
+    def _directory(self, tmp_path: Path) -> None:
+        self.directory = tmp_path
+
+    async def make_store(self) -> SQLiteFeedbackStore:
+        return SQLiteFeedbackStore(self.directory / "feedback.db")
+```
+
+The kit calls `make_store` once per check, so each check gets a fresh
+database.
+
+See [Testing kits](../api/testing.md) for the other kits.
 
 ## Errors
 

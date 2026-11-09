@@ -1,7 +1,7 @@
 # Record human-in-the-loop decisions
 
 LangGraph pauses a graph for human input with `interrupt()` and resumes it
-with `Command(resume=...)`. `HumanInTheLoopBridge` adds a feedback record of
+with `Command(resume=...)`. `LangGraphHumanInTheLoopBridge` adds a feedback record of
 each pause and its answer: why the graph paused, who was asked what, and what
 they decided. The decision then becomes queryable, routable, and auditable like
 any other feedback.
@@ -42,14 +42,14 @@ checkpoint, node, and interrupt.
 
 ```python
 from feedback_manager import FeedbackManager, FeedbackTarget, FeedbackTargetType
-from feedback_manager.integrations.langgraph import (
-    HumanInTheLoopBridge,
+from feedback_manager.integrations.frameworks.langchain import (
+    LangGraphHumanInTheLoopBridge,
     execution_context_from_snapshot,
     extract_interrupts,
 )
 
 manager = FeedbackManager()
-bridge = HumanInTheLoopBridge(manager)
+bridge = LangGraphHumanInTheLoopBridge(manager)
 config = {"configurable": {"thread_id": "refund-1042"}}
 
 paused = await graph.ainvoke({"action": "send_refund_email"}, config)
@@ -116,11 +116,11 @@ pass an `idempotency_key` that identifies the pause in your application, for
 example the thread and checkpoint IDs. The interrupt ID alone is not enough:
 successive `interrupt()` calls in one node share it.
 
-## With langgraph-xai
+## With agxai
 
-When the graph is instrumented by `langgraph-xai` and the manager has the
+When the graph is instrumented by `agxai` and the manager has the
 runtime, `execution_context_from_snapshot` also records the run ID of the
 paused run. The request's [provenance](../concepts/provenance.md) then points
-at that run and at the human interaction `langgraph-xai` recorded for the
+at that run and at the human interaction `agxai` recorded for the
 interrupt. [Example 08](../examples/agents.md#08-deepagents-with-human-approval)
 does this with a `deepagents` agent whose file edits require approval.

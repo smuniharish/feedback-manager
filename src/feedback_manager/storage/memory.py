@@ -33,7 +33,7 @@ class InMemoryFeedbackStore(FeedbackStore):
 
     def __init__(self) -> None:
         self._events: dict[UUID, FeedbackEvent] = {}
-        self._idempotency_index: dict[str, UUID] = {}
+        self._idempotency_index: dict[tuple[str | None, str], UUID] = {}
         self._lock = threading.Lock()
 
     async def create(self, feedback: FeedbackEvent) -> FeedbackEvent:
@@ -43,8 +43,14 @@ class InMemoryFeedbackStore(FeedbackStore):
             FeedbackStoreError: If an event with the same ``feedback_id`` exists.
         """
         key = feedback.idempotency_key
+        tenant = (
+            None if feedback.execution_context is None else feedback.execution_context.tenant_id
+        )
         with self._lock:
-            if key is not None and (existing := self._idempotency_index.get(key)) is not None:
+            if (
+                key is not None
+                and (existing := self._idempotency_index.get((tenant, key))) is not None
+            ):
                 return self._events[existing]
             if feedback.feedback_id in self._events:
                 raise FeedbackStoreError(
@@ -52,7 +58,7 @@ class InMemoryFeedbackStore(FeedbackStore):
                 )
             self._events[feedback.feedback_id] = feedback
             if key is not None:
-                self._idempotency_index[key] = feedback.feedback_id
+                self._idempotency_index[tenant, key] = feedback.feedback_id
             return feedback
 
     async def get(self, feedback_id: UUID) -> FeedbackEvent | None:
@@ -95,9 +101,11 @@ class InMemoryFeedbackStore(FeedbackStore):
     async def query(self, query: FeedbackQuery) -> Sequence[FeedbackEvent]:
         """Return the events matching ``query``, stopping as soon as ``limit`` is reached."""
         with self._lock:
-            if query.idempotency_key is not None:
+            if query.idempotency_key is not None and (
+                query.tenant_id is not None or query.unscoped_only
+            ):
                 # The idempotency index finds the only possible match directly.
-                feedback_id = self._idempotency_index.get(query.idempotency_key)
+                feedback_id = self._idempotency_index.get((query.tenant_id, query.idempotency_key))
                 event = None if feedback_id is None else self._events[feedback_id]
                 return [event] if event is not None and query.matches(event) else []
             matches: list[FeedbackEvent] = []

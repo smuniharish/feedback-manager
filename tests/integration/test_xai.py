@@ -1,4 +1,4 @@
-"""langgraph-xai integration: provenance resolution against real runtimes and stores."""
+"""agxai integration: provenance resolution against real runtimes and stores."""
 
 from __future__ import annotations
 
@@ -7,13 +7,7 @@ from typing import TYPE_CHECKING, Any, TypedDict
 from uuid import UUID, uuid4
 
 import pytest
-from langchain_core.messages import AIMessage
-from langchain_core.tools import tool
-from langgraph.checkpoint.memory import InMemorySaver
-from langgraph.graph import END, START, StateGraph
-from langgraph.prebuilt import ToolNode
-from langgraph.types import interrupt
-from langgraph_xai import (
+from agxai import (
     DecisionType,
     EvidenceType,
     Execution,
@@ -23,7 +17,13 @@ from langgraph_xai import (
     ProvenanceStore,
     XAIRuntime,
 )
-from langgraph_xai import ExecutionContext as XaiContext
+from agxai import ExecutionContext as XaiContext
+from langchain_core.messages import AIMessage
+from langchain_core.tools import tool
+from langgraph.checkpoint.memory import InMemorySaver
+from langgraph.graph import END, START, StateGraph
+from langgraph.prebuilt import ToolNode
+from langgraph.types import interrupt
 
 from feedback_manager import (
     ExecutionContext,
@@ -32,21 +32,21 @@ from feedback_manager import (
     FeedbackTarget,
 )
 from feedback_manager.errors import FeedbackCorrelationError
-from feedback_manager.integrations.langgraph import (
-    HumanInTheLoopBridge,
+from feedback_manager.integrations.frameworks.langchain import (
+    LangGraphHumanInTheLoopBridge,
     execution_context_from_config,
     execution_context_from_snapshot,
     extract_interrupts,
 )
-from feedback_manager.integrations.xai import XAIProvenanceAdapter
+from feedback_manager.integrations.provenance import AgxaiProvenanceProvider
 from feedback_manager.policies import FailureMode, FailurePolicy, FeedbackStage
 from tests.conftest import RecordingSink
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator
 
+    from agxai.core import StoreQuery
     from langchain_core.runnables import RunnableConfig
-    from langgraph_xai.core.protocols import StoreQuery
 
 pytestmark = pytest.mark.integration
 
@@ -88,7 +88,7 @@ async def echo(text: str) -> str:
 class TestLiveRuns:
     async def test_feedback_carries_the_latest_decision_and_its_evidence(self) -> None:
         xai = _runtime()
-        manager = FeedbackManager(xai_runtime=xai)
+        manager = FeedbackManager(provenance_provider=AgxaiProvenanceProvider(xai))
         recorded: dict[str, UUID] = {}
         submitted: list[FeedbackEvent] = []
 
@@ -125,7 +125,7 @@ class TestLiveRuns:
 
     async def test_without_a_decision_all_recorded_evidence_is_referenced(self) -> None:
         xai = _runtime()
-        manager = FeedbackManager(xai_runtime=xai)
+        manager = FeedbackManager(provenance_provider=AgxaiProvenanceProvider(xai))
         submitted: list[FeedbackEvent] = []
 
         async def gather(state: State) -> State:
@@ -144,7 +144,7 @@ class TestLiveRuns:
 
     async def test_non_uuid_run_ids_fall_back_to_the_active_run(self) -> None:
         xai = _runtime()
-        manager = FeedbackManager(xai_runtime=xai)
+        manager = FeedbackManager(provenance_provider=AgxaiProvenanceProvider(xai))
         inside: list[FeedbackEvent] = []
 
         async def node(state: State) -> State:
@@ -163,7 +163,7 @@ class TestLiveRuns:
 class TestCompletedRuns:
     async def test_feedback_after_a_run_resolves_from_the_store(self) -> None:
         xai = _runtime()
-        manager = FeedbackManager(xai_runtime=xai)
+        manager = FeedbackManager(provenance_provider=AgxaiProvenanceProvider(xai))
 
         def agent(state: State) -> State:
             call = {"name": "echo", "args": {"text": "hi"}, "id": "call-9"}
@@ -193,7 +193,7 @@ class TestCompletedRuns:
 
     async def test_another_runs_feedback_from_inside_a_run_uses_that_run(self) -> None:
         xai = _runtime()
-        manager = FeedbackManager(xai_runtime=xai)
+        manager = FeedbackManager(provenance_provider=AgxaiProvenanceProvider(xai))
         with xai.collect_runs() as earlier:
             await xai.instrument(_chain(("first", lambda state: {}))).ainvoke({})
         submitted: list[FeedbackEvent] = []
@@ -212,7 +212,7 @@ class TestCompletedRuns:
 
     async def test_unknown_runs_and_missing_stores_have_no_provenance(self) -> None:
         xai = _runtime()
-        manager = FeedbackManager(xai_runtime=xai)
+        manager = FeedbackManager(provenance_provider=AgxaiProvenanceProvider(xai))
 
         assert (await _submit(manager, ExecutionContext(run_id=str(uuid4())))).provenance is None
         xai.registry.remove(ProvenanceStore)
@@ -224,7 +224,7 @@ class TestCompletedRuns:
         assert store is not None
         run_id = uuid4()
         await store.write(_execution(run_id, application_id="other", tenant_id="acme"))
-        adapter = XAIProvenanceAdapter(xai)
+        adapter = AgxaiProvenanceProvider(xai)
 
         scoped = await adapter.resolve(
             _event(ExecutionContext(run_id=str(run_id), application_id="other", tenant_id="acme"))
@@ -244,7 +244,7 @@ class TestCompletedRuns:
         for execution in executions:
             await store.write(execution)
 
-        reference = await XAIProvenanceAdapter(xai).resolve(
+        reference = await AgxaiProvenanceProvider(xai).resolve(
             _event(ExecutionContext(run_id=str(run_id)))
         )
 
@@ -267,7 +267,7 @@ class TestCompletedRuns:
         execution = _execution(run_id)
         await store.write(execution)
 
-        reference = await XAIProvenanceAdapter(xai).resolve(
+        reference = await AgxaiProvenanceProvider(xai).resolve(
             _event(ExecutionContext(run_id=str(run_id)))
         )
 
@@ -278,8 +278,8 @@ class TestCompletedRuns:
 class TestHumanInTheLoop:
     async def test_requests_and_resumed_runs_link_to_their_interactions(self) -> None:
         xai = _runtime()
-        manager = FeedbackManager(xai_runtime=xai)
-        bridge = HumanInTheLoopBridge(manager)
+        manager = FeedbackManager(provenance_provider=AgxaiProvenanceProvider(xai))
+        bridge = LangGraphHumanInTheLoopBridge(manager)
 
         def ask(state: State) -> State:
             return {"step": interrupt("approve the refund?")}
@@ -323,9 +323,14 @@ class TestFailures:
         sink = RecordingSink()
         context = ExecutionContext(run_id=str(uuid4()))
 
-        isolated = await _submit(FeedbackManager(xai_runtime=xai, observability_sink=sink), context)
+        isolated = await _submit(
+            FeedbackManager(
+                provenance_provider=AgxaiProvenanceProvider(xai), observability_sink=sink
+            ),
+            context,
+        )
         strict = FeedbackManager(
-            xai_runtime=xai,
+            provenance_provider=AgxaiProvenanceProvider(xai),
             failure_policy=FailurePolicy(modes={FeedbackStage.PROVENANCE: FailureMode.BLOCKING}),
         )
 

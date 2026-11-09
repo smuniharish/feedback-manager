@@ -1,4 +1,4 @@
-"""A pointer from feedback into the ``langgraph-xai`` provenance records of a run."""
+"""A pointer from feedback into the ``agxai`` provenance records of a run."""
 
 from __future__ import annotations
 
@@ -8,17 +8,17 @@ from feedback_manager.core._types import Identifier, JsonObject
 
 
 class FeedbackProvenanceReference(BaseModel):
-    """The ``langgraph-xai`` records a piece of feedback refers to.
+    """The ``agxai`` records a piece of feedback refers to.
 
     `FeedbackManager` attaches it at submission when it was given an
     ``XAIRuntime``. The IDs locate the records in the runtime's provenance store.
 
     Attributes:
-        run_id: The ``langgraph-xai`` run ID.
+        run_id: The ``agxai`` run ID.
         execution_id: The ID of the run's ``Execution`` record.
         summary: A one-line, human-readable description of the run.
         node_execution_id: The latest recorded execution of the feedback's node
-            (``ExecutionContext.node_id``) in the run. ``langgraph-xai`` records
+            (``ExecutionContext.node_id``) in the run. ``agxai`` records
             a node execution when the node finishes, so feedback submitted from
             inside the node itself has none yet.
         tool_execution_id: The tool execution matching the feedback's
@@ -27,7 +27,7 @@ class FeedbackProvenanceReference(BaseModel):
             ``ExecutionContext.interrupt_id``.
         decision_id: The latest decision recorded in the run when the feedback
             was submitted. Only set for feedback submitted while the run is
-            active, because ``langgraph-xai`` keeps decisions in the live run and
+            active, because ``agxai`` keeps decisions in the live run and
             delivers them to plugins instead of storing them.
         evidence_ids: The evidence that decision relied on or, without a
             decision, all evidence recorded so far. Like ``decision_id``, only

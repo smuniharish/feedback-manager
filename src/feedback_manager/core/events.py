@@ -42,7 +42,7 @@ class FeedbackEvent(BaseModel):
         execution_context: The execution the target belongs to.
         correlation_id: Groups related feedback; assigned at submission by the
             `FeedbackCorrelator`.
-        provenance: The ``langgraph-xai`` records the feedback refers to.
+        provenance: The ``agxai`` records the feedback refers to.
         status: The lifecycle status.
         resolution: How the feedback was closed, set by
             `FeedbackManager.resolve`, `reject`, and `cancel`.

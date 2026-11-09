@@ -1,0 +1,46 @@
+{
+  "skill_name": "feedback-manager-extend",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "store.py is our in-house FeedbackStore. We think it works, but we never certified it. Prove whether it honours the feedback-manager contract and fix whatever does not.",
+      "expected_output": "Runs scripts/check_component.py or a FeedbackStoreContract subclass against DictFeedbackStore, reports the broken promises (duplicate IDs, idempotency, query filters, resolution, compare-and-set transitions), fixes each in store.py with a lock, an idempotency index, FeedbackQuery.matches, and expected-status checks, and reruns until every promise holds.",
+      "files": ["files/dict_store/store.py"],
+      "assertions": [
+        "Certifies the store with FeedbackStoreContract or scripts/check_component.py before changing it",
+        "create raises FeedbackStoreError on a duplicate feedback_id",
+        "create returns the existing event for a repeated idempotency key within a tenant",
+        "query applies the FeedbackQuery filters, order, and limit",
+        "transition raises FeedbackConflictError when the stored status is not expected",
+        "The final run shows every contract promise passing"
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "We are moving our agents to CrewAI. Write a feedback-manager adapter for it so CrewAI agents get execution context, human-in-the-loop, and learned context like the LangChain adapter does.",
+      "expected_output": "A CrewAIAdapter subclassing FrameworkAdapter with a name ClassVar, an ExecutionContextExtractor, a HumanInTheLoopBridge, and a LearnedContextInjector built from feedback_manager.integrations base classes, with CrewAI imported lazily behind an extra, plus tests modelled on assets/test_adapter.py.",
+      "files": [],
+      "assertions": [
+        "Subclasses FrameworkAdapter from feedback_manager.integrations",
+        "Implements context_extractor, human_in_the_loop, and context_injector",
+        "Builds an ExecutionContext with run, agent, and tenant identifiers from CrewAI objects",
+        "Does not import crewai at feedback_manager import time",
+        "Tests cover context extraction, pause and resume, and the no-context case"
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "Replace the in-memory artifact repository with one on our Postgres database so learned artifacts survive restarts, and make sure feedback-manager accepts it for durable learning.",
+      "expected_output": "A PostgresArtifactRepository subclassing ArtifactRepository implementing create, get, get_many, versions, update with optimistic expected_version checks, query, and health, with durable = True, certified with ArtifactRepositoryContract, and wired with FeedbackManager(learning_engine=LearningEngine(repo), require_durable_learning=True) alongside a durable job store and change source.",
+      "files": [],
+      "assertions": [
+        "Subclasses ArtifactRepository and implements every abstract method",
+        "update raises ArtifactConflictError when the stored version differs from expected_version",
+        "Every read and write is filtered by TenantScope",
+        "Sets durable = True only for the persistent implementation",
+        "Certifies it with ArtifactRepositoryContract",
+        "Explains that require_durable_learning=True also needs a durable job store and change source"
+      ]
+    }
+  ]
+}

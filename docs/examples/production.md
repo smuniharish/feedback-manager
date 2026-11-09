@@ -64,7 +64,7 @@ Windows; the module's `run()` helper starts one.
 
 Every constructor argument of `FeedbackManager` swapped for a custom
 implementation, each one printed taking effect: a store that counts writes, a
-router and handler, a correlator, a `langgraph-xai` runtime, a lifecycle
+router and handler, a correlator, an `agxai` runtime, a lifecycle
 policy that requires a reviewer, a redaction policy that masks emails, a
 blocking routing failure, and an observability sink.
 
@@ -78,7 +78,7 @@ blocking routing failure, and an observability sink.
 store:              1 write(s)
 router + handler:   notified 1 time(s)
 correlator:         correlation_id=conv-12
-xai_runtime:        langgraph-xai run 2337d808-f7f5-4374-81fa-c518aff506db (completed): 1 node execution(s), 0 tool execution(s)
+provenance:         agxai run 2337d808-f7f5-4374-81fa-c518aff506db (completed): 1 node execution(s), 0 tool execution(s)
 redaction_policy:   payload={'comment': 'Great answer', 'email': '***'}
 lifecycle_policy:   assign a reviewer before resolving
 failure_policy:     routing stage failed: LookupError: routing table unavailable (feedback_id=62c7fb0b-2755-4a33-a6a3-7abd2fb096e1)

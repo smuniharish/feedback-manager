@@ -34,7 +34,7 @@ from feedback_manager import (
     FeedbackTarget,
     FeedbackTargetType,
 )
-from feedback_manager.observability import FEEDBACK_RECEIVED, ObservabilityEvent
+from feedback_manager.observability import FEEDBACK_RECEIVED, ObservabilityEvent, ObservabilitySink
 
 GRAFANA_URL = os.environ.get("FEEDBACK_MANAGER_GRAFANA_URL", "http://localhost:3000")
 GRAFANA_AUTH = (
@@ -147,7 +147,7 @@ FIELD_CONFIG: dict[str, dict[str, Any]] = {
 logger = logging.getLogger("examples.grafana")
 
 
-class GrafanaAnnotationSink:
+class GrafanaAnnotationSink(ObservabilitySink):
     """Posts lifecycle events to Grafana as annotations, from a background thread.
 
     `emit` only enqueues the event, so a slow or unreachable Grafana never

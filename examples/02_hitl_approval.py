@@ -1,6 +1,6 @@
 """Record a human-in-the-loop approval around a native LangGraph interrupt.
 
-LangGraph pauses and resumes the graph. `HumanInTheLoopBridge` keeps a
+LangGraph pauses and resumes the graph. `LangGraphHumanInTheLoopBridge` keeps a
 feedback record of why it paused and what the reviewer decided.
 
 Run with:
@@ -17,8 +17,8 @@ from langgraph.graph import END, START, StateGraph
 from langgraph.types import interrupt
 
 from feedback_manager import FeedbackManager, FeedbackTarget, FeedbackTargetType
-from feedback_manager.integrations.langgraph import (
-    HumanInTheLoopBridge,
+from feedback_manager.integrations.frameworks.langchain import (
+    LangGraphHumanInTheLoopBridge,
     execution_context_from_snapshot,
     extract_interrupts,
 )
@@ -44,7 +44,7 @@ def build_graph() -> Any:
 
 async def main() -> None:
     manager = FeedbackManager()
-    bridge = HumanInTheLoopBridge(manager)
+    bridge = LangGraphHumanInTheLoopBridge(manager)
     graph = build_graph()
     config: RunnableConfig = {"configurable": {"thread_id": "refund-1042"}}
 

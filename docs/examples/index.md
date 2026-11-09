@@ -23,7 +23,9 @@ Offline, deterministic, and fast: no model, no network, no database.
 | [03 Tool failure](basics.md#03-tool-failure) | Record a tool timeout inside a LangGraph agent, automatically and once. |
 | [04 Generation interruption](basics.md#04-generation-interruption) | Record a generation stopped mid-stream, with its partial output. |
 | [05 Evaluator feedback](basics.md#05-evaluator-feedback) | Route low evaluator scores to a review queue. |
-| [06 Provenance](basics.md#06-provenance) | Link feedback to `langgraph-xai` decisions and evidence. |
+| [06 Provenance](basics.md#06-provenance) | Link feedback to `agxai` decisions and evidence. |
+| [13 Basic learning](../how-to/basic-learning.md) | Aggregate scoped feedback and manually review a learned strategy. |
+| [14 Custom agent](../how-to/custom-agents.md) | Integrate a hand-written agent loop through the dependency-free adapter. |
 
 ## Agents
 
@@ -47,3 +49,5 @@ Infrastructure-backed patterns.
 | [11 Grafana dashboard](production.md#grafana-dashboard) | Dashboards over the feedback table, and lifecycle annotations from a sink. | PostgreSQL, Grafana |
 | [12 Realistic data](production.md#realistic-data) | Varied, organic feedback for the dashboard. | PostgreSQL |
 | [Streamlit UI](production.md#streamlit-ui) | A feedback capture and review screen. | Optionally PostgreSQL |
+| [15 Background learning](../how-to/background-learning.md) | Durable automatic learning, LanceDB vectors, a LadybugDB graph, and hybrid retrieval. | `lancedb`, `ladybugdb` extras |
+| [16 Bring your own components](../how-to/customize-components.md#a-complete-example) | Your own feedback store, agxai store, LanceDB connection, and LadybugDB database, certified with a contract kit. | `lancedb`, `ladybugdb` extras |

@@ -1,0 +1,25 @@
+{
+  "skill_name": "feedback-manager-extend",
+  "queries": [
+    {"query": "implement a feedback-manager FeedbackStore on postgres", "should_trigger": true, "split": "train"},
+    {"query": "write a feedback-manager adapter for CrewAI agents", "should_trigger": true, "split": "train"},
+    {"query": "our custom vector store fails VectorStoreContract on tenant isolation", "should_trigger": true, "split": "train"},
+    {"query": "plug our own embedding model into feedback-manager", "should_trigger": true, "split": "train"},
+    {"query": "certify a learning job store on redis with the feedback-manager testing kit", "should_trigger": true, "split": "train"},
+    {"query": "write a custom routing handler and redaction policy for feedback-manager", "should_trigger": true, "split": "train"},
+    {"query": "make feedback-manager use our existing agxai Postgres provenance store", "should_trigger": true, "split": "validation"},
+    {"query": "add an agno integration to feedback-manager with human-in-the-loop", "should_trigger": true, "split": "validation"},
+    {"query": "check_component.py exits with code 2 for my store factory", "should_trigger": true, "split": "validation"},
+    {"query": "build a neo4j GraphStore for learned artifact relationships", "should_trigger": true, "split": "validation"},
+    {"query": "record feedback from my langgraph app", "should_trigger": false, "split": "train"},
+    {"query": "review and activate a learned artifact", "should_trigger": false, "split": "train"},
+    {"query": "write an agxai ProvenanceStore on DynamoDB", "should_trigger": false, "split": "train"},
+    {"query": "design a postgres schema for an e-commerce site", "should_trigger": false, "split": "train"},
+    {"query": "create a LangChain custom tool", "should_trigger": false, "split": "train"},
+    {"query": "write a CrewAI crew that plans a trip", "should_trigger": false, "split": "train"},
+    {"query": "why does retrieval return no lessons for my agent", "should_trigger": false, "split": "validation"},
+    {"query": "set up pytest fixtures for a fastapi app", "should_trigger": false, "split": "validation"},
+    {"query": "feedback-manager raises FeedbackLifecycleError: illegal transition received -> resolved", "should_trigger": false, "split": "validation"},
+    {"query": "train an embedding model on our support tickets", "should_trigger": false, "split": "validation"}
+  ]
+}

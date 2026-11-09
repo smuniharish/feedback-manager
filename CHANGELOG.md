@@ -5,151 +5,121 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.2] - 2026-11-06
+
+feedback-manager collects, validates, stores, and routes feedback about AI
+agents, and learns from validated feedback so agents improve their future
+behaviour. It is framework-agnostic: LangChain and LangGraph are one optional
+adapter, and any other agent framework plugs in through the same base classes.
+This release describes the complete public API.
+
+### Feedback management
+
+- `FeedbackManager` submits feedback idempotently per tenant, moves it through
+  a compare-and-set lifecycle (`acknowledge`, `mark_handled`, `resolve`,
+  `reject`, `cancel`, `expire`, `expire_overdue`), queries it with
+  `FeedbackQuery`, and delivers every change to subscribers and streams. It is
+  an async context manager.
+- `FeedbackEvent` records the source, category, target, payload, execution
+  context (`tenant_id`, `agent_id`, `run_id`, `thread_id`, `node_id`,
+  `tool_call_id`, `interrupt_id`, and more), correlation ID, provenance, and
+  resolution of each piece of
+  feedback. Original feedback is never rewritten by learning.
+- Correlation, routing to handlers, lifecycle authorization, redaction,
+  per-stage failure isolation, and observability events are each one
+  replaceable component.
+
+### Agent learning
+
+- `LearningEngine` extracts learning signals from validated feedback,
+  discovers repeated errors and corrections, aggregates evidence, estimates
+  confidence, detects conflicts, and publishes versioned candidate artifacts
+  that a reviewer validates and activates.
+- `BackgroundLearner` learns automatically from durable, scoped jobs with
+  lease fencing, bounded retries, dead letters, and replay checkpoints, and
+  recovers after a restart. `FeedbackChangeSource` provides an ordered change
+  feed committed with feedback writes.
+- `ArtifactIndexer` projects artifacts into vector and graph stores through a
+  durable outbox. `StructuredRetriever`, `VectorRetriever`, `GraphRetriever`,
+  and `HybridRetriever` return only current, reviewed, in-scope artifacts.
+- `LanceDBVectorStore` and `LadybugGraphStore` (`lancedb` and `ladybugdb`
+  extras), typed embedding spaces, and `HashingEmbeddingProvider` and
+  `CallableEmbeddingProvider`.
+
+### Integrations
+
+- `FrameworkAdapter`, `ExecutionContextExtractor`, `FailureClassifier`,
+  `HumanInTheLoopBridge`, and `LearnedContextInjector` define a framework
+  integration. `integrations.frameworks.custom` integrates a hand-written agent
+  loop or multi-agent system with no dependencies;
+  `integrations.frameworks.langchain` (`langchain` extra) records LangChain and
+  LangGraph failures and human-in-the-loop decisions.
+- `AgxaiProvenanceProvider` links feedback to the agxai run, decision, and
+  evidence it is about. `create_agxai_runtime` accepts agxai's store,
+  registry, plugins, observability, attribution, explanation, and policy
+  components.
+- OpenTelemetry spans and duration histograms for learning, jobs,
+  projections, retrieval, databases, and embeddings (`otel` extra), without
+  feedback payloads or unbounded attributes.
+
+### Extensibility
+
+- Every extension point is an abstract base class, checked when the manager is
+  built.
+- Callers inject their own agxai provenance store, LanceDB connection and
+  connect options, and LadybugDB database and database options.
+- `feedback_manager.testing` holds public contract kits for feedback stores,
+  artifact repositories, vector stores, graph stores, learning job stores, and
+  embedding providers.
+
+### Packaging
+
+- Requires Python 3.12 or later and is tested on Python 3.12 to 3.15 on Linux,
+  macOS, and Windows. Core dependencies are `agxai`, `pydantic`, and
+  `structlog`. The `lancedb` and `ladybugdb` extras install on Python 3.14
+  or earlier.
+- Releases include build provenance attestations and a CycloneDX SBOM, and
+  CodeQL scans the code and workflows.
+- Built with `uv_build`. Documentation is built with Zensical.
+- Three Agent Skills in `feedback-manager-skills/`, plus container, Compose,
+  and Kubernetes examples for the background learner.
+
 ## [0.1.1] - 2026-10-04
 
-A correctness and hardening release. It fixes defects in lifecycle handling,
-concurrency, failure isolation, and the framework integrations, aligns the
-package with `langgraph-xai` 1.0, and removes APIs that could not be used
-correctly. Upgrading requires the changes listed under "Breaking changes".
-
-### Breaking changes
-
-#### Requirements
-
-- Requires `langgraph-xai>=1.0.0,<2`, `langgraph>=1.2.12,<2`,
-  `pydantic>=2.13.5,<3`, and `structlog>=26.1.0,<27`. `langchain-core` is no
-  longer a direct dependency; it is installed with `langgraph`.
-
-#### Domain model
-
-- `FeedbackEvent.correlation` and `CorrelationContext` were replaced by
-  `FeedbackEvent.correlation_id`, a string.
-- Resolutions are stored in the new `FeedbackEvent.resolution` field instead of
-  `metadata["resolution"]`.
-- `FeedbackEvent.with_correlation` and `with_provenance` were removed;
-  `with_status(status, *, resolution=None)` remains.
-- Identifiers, sources, categories, and target types must be non-empty strings
-  without leading or trailing whitespace.
-- `payload`, `metadata`, `target.metadata`, and `resolution` must be JSON
-  objects with finite numbers, and timestamps must be timezone-aware.
-
-#### FeedbackManager
-
-- `submit` stores feedback directly as `RECEIVED` in a single write, and no
-  longer emits `feedback.created`.
-- `list()` was removed; call `query()` without arguments.
-- The `provenance_adapter` argument was removed; pass `xai_runtime`.
-- `stream()` now returns a `FeedbackStream`, which is registered immediately
-  and can be closed; it must be called from a running event loop. It receives
-  changes made from any task, thread, or event loop, in the order they were
-  published.
-- `reject` and `cancel` accept a `resolution` next to `reason`.
-- Lifecycle calls to the current status return the event unchanged and publish
-  nothing.
-- `REJECTED`, `CANCELLED`, and `EXPIRED` emit `feedback.rejected`,
-  `feedback.cancelled`, and `feedback.expired`, instead of `feedback.resolved`.
-- Invalid collaborators raise `FeedbackConfigurationError` instead of
-  `ValueError`, and every error the package raises derives from
-  `FeedbackManagerError`.
-
-#### Contracts
-
-- `FeedbackStore.transition` is a compare-and-set:
-  `transition(feedback_id, status, *, expected, resolution=None)`.
-  `FeedbackStore.update` and `list` were removed. `FeedbackStore.query` must
-  support the new `FeedbackQuery` filters, which `FeedbackQuery.matches`
-  implements.
-- `FeedbackHandler.handle(feedback)` no longer receives a `FeedbackContext`,
-  which was removed, and `FeedbackHandlerResult` no longer has `metadata`.
-  `handle` must return a `FeedbackHandlerResult`, and `FeedbackRouter.route`
-  must return `FeedbackHandler` instances; anything else fails the `HANDLER`
-  or `ROUTING` stage.
-- `FeedbackPolicy.apply` was renamed `FeedbackRedactionPolicy.redact`.
-- `FeedbackSerializer` and `FeedbackSerializationError` were removed: events
-  serialize with pydantic.
-- `FeedbackStage.STORE` and `SERIALIZATION` were removed: store failures always
-  raise `FeedbackStoreError`. `DeliveryMode` was removed.
-- `FailurePolicy(modes=...)` overrides only the given stages and keeps the
-  best-effort default for the others.
-
-#### Integrations
-
-- `FeedbackCallbackHandler(manager)` no longer takes a `config`: it reads each
-  run's context from LangChain's callbacks. It records a cancelled run once,
-  about the top-level run, and LangGraph node timeouts about the node.
-- `HumanInTheLoopBridge.interrupt()` was removed; call LangGraph's
-  `interrupt()` directly. `request()` takes the pending `interrupt` (or a
-  `prompt`), and `resume_command()` accepts an `interrupt_id`.
-- `capture_tool_feedback()` takes an optional `tool_name`, validates
-  `tool_call_id` on entry, and lets a cancellation pass through without
-  recording it.
+A correctness and hardening release.
 
 ### Added
 
-- `FeedbackManager.expire_overdue(policy, *, now=None)` expires overdue pending
-  feedback, and `RetentionPolicy` gained `cutoff()`.
+- `FeedbackManager.expire_overdue(policy, *, now=None)`, and
+  `RetentionPolicy.cutoff()`.
 - `FeedbackQuery` filters by `created_after`, `created_before`, and
-  `idempotency_key`, returns newest events first with `newest_first`, and
-  validates its fields.
-- Each change of an event sets a later `updated_at` than the change before it,
-  even when the clock has not advanced, so `updated_at` orders its changes.
-- `FeedbackConflictError` and `FeedbackSubscriberError`.
-- `ExecutionContext.interrupt_id`, and `execution_context_from_snapshot()` to
-  build a context from a paused graph's state snapshot.
-- Provenance references include the matching human interaction, and, for
-  feedback submitted during a run, the latest decision and its evidence.
-- `FeedbackManager` is an async context manager, and `aclose()` closes every
-  open stream.
+  `idempotency_key`, and returns newest events first with `newest_first`.
+- `FeedbackEvent.correlation_id` and `FeedbackEvent.resolution`.
+- `FeedbackStore.transition` is a compare-and-set with an `expected` status.
+- `FeedbackStream`, registered when `stream()` returns and closable.
+- `FeedbackConflictError`, `FeedbackSubscriberError`, and a
+  `FeedbackManagerError` base for every error the package raises.
+- `ExecutionContext.interrupt_id` and `execution_context_from_snapshot()`.
+- `FeedbackManager` as an async context manager, with `aclose()`.
 - `known_values()` on `FeedbackSource`, `FeedbackCategory`, and
-  `FeedbackTargetType`.
-- `Identifier`, `JsonObject`, `LEGAL_TRANSITIONS`, `TERMINAL_STATUSES`,
-  `LifecycleTransition`, and `is_legal_transition` in `feedback_manager.core`.
-- Examples: a durable SQLite store, and a Docker Compose file for the
-  PostgreSQL and Grafana examples.
-
-### Changed
-
-- The documentation was reorganized into concepts, how-to guides, examples,
-  API reference, and operations pages, with diagrams.
-- The examples were rewritten for the new API. Example 08, now
-  `08_agent_deepagents_hitl.py`, edits a temporary copy of its workspace
-  instead of the repository's files.
-- The Agent Skill in `feedback-manager-skills/` was rewritten for the new API.
+  `FeedbackTargetType`; lifecycle helpers in `feedback_manager.core`.
+- A durable SQLite store example and a Docker Compose file for the PostgreSQL
+  and Grafana examples.
 
 ### Fixed
 
-- Illegal `resolve`, `reject`, or `cancel` calls wrote the resolution before
-  the transition was validated, corrupting the event.
-- Repeating a lifecycle call re-published the event, bumped `updated_at`, and
-  overwrote the resolution.
-- Concurrent transitions could overwrite each other and publish the same
-  change twice, and the lifecycle policy authorized moves on stale state.
-- `InMemoryFeedbackStore` was not safe across threads and event loops.
-- Events published between `stream()` and its first iteration were lost.
-- `FeedbackQuery(limit=-1)` silently dropped results.
-- `feedback.failed` was never emitted, and a failing observability sink broke
-  processing of feedback that was already stored.
-- Overriding one failure mode reset the others.
-- The handler's result was ignored, and `feedback.routed` did not report it.
-- `FeedbackCallbackHandler` recorded one failure once per enclosing runnable
-  and once per run a cancellation or a failing node stopped, recorded
-  LangGraph interrupts as failures, and lost the run's context.
-- An idempotent replay ran correlation and provenance resolution again before
-  returning the stored event.
-- `capture_tool_feedback` swallowed `KeyboardInterrupt` and `SystemExit`, and a
-  recording failure replaced the original exception.
-- `execution_context_from_config` rejected non-string IDs and ignored the run ID
-  and node that `langgraph-xai` and LangGraph provide.
-- `HumanInTheLoopBridge.resolve` failed for requests that were already
-  acknowledged or handled.
-- Post-run provenance looked up the wrong record, and interactions were not
-  matched to their interrupt.
-- `RetentionPolicy` treated handled feedback as expirable.
-- Non-finite numbers were accepted but could not be serialized.
-- Empty and padded identifiers were accepted.
-- Disabled log levels were still rendered.
-- `__version__` could drift from the installed version.
-- Project URLs pointed to a repository that does not exist.
+- Lifecycle calls validate a transition before writing its resolution, and a
+  repeated call returns the event unchanged.
+- Concurrent transitions cannot overwrite each other or publish a change twice.
+- `InMemoryFeedbackStore` is safe across threads and event loops.
+- Streams receive every event published after `stream()` returns.
+- `feedback.failed` is emitted, and a failing observability sink never breaks
+  processing.
+- The LangChain callback handler records each failure once, about the right
+  run, and keeps the run's context.
+- `capture_tool_feedback` lets `KeyboardInterrupt`, `SystemExit`, and
+  cancellation pass through and keeps the original exception.
+- Identifiers, JSON payloads, and timestamps are validated.
 
 ## [0.1.0] - 2026-09-25
 
@@ -164,9 +134,10 @@ The first public release.
 - Extension contracts for stores, routers, handlers, correlators, subscribers,
   and policies, with an in-memory store, a rule-based router, a default
   correlator, failure isolation, and observability hooks.
-- Integrations for LangChain callbacks and tools, LangGraph human-in-the-loop
-  interrupts, and `langgraph-xai` provenance.
+- LangChain callbacks and tools, LangGraph human-in-the-loop interrupts, and
+  provenance links.
 - Examples, tests, and documentation.
 
+[0.1.2]: https://github.com/smuniharish/feedback-manager/releases/tag/v0.1.2
 [0.1.1]: https://github.com/smuniharish/feedback-manager/releases/tag/v0.1.1
 [0.1.0]: https://pypi.org/project/feedback-manager/0.1.0/

@@ -1,5 +1,26 @@
 # Security and data handling
 
+## Learning trust boundary
+
+Authenticate tenant, namespace, agent and reviewer identities in the host, not
+from an agent's arbitrary payload. `manager.for_tenant(authenticated_tenant)`
+isolates feedback queries, lifecycle operations, subscriptions and streams;
+the unscoped manager remains a trusted administrator API. Idempotency keys are
+partitioned by tenant. Custom stores must enforce the same invariant.
+
+Unknown tenant scope is excluded from automatic learning. Private artifact
+applicability is rechecked against authoritative versions after projection
+search. Review and activation are explicit, and evidence must satisfy the
+separate learning-validation policy.
+
+Learned context is untrusted reference data. Runtime renderers escape markup
+delimiters, but delimiters do not make a model immune to prompt injection. Do
+not let retrieved guidance override host permissions or trusted instructions.
+Keep sensitive content out of feedback using the redaction policy before
+persistence; vectors and graph evidence are derived data subject to the same
+retention obligations. Deprecating an artifact does not erase original audit
+records, historical versions or embeddings from old spaces.
+
 feedback-manager is a library inside your process. It has no network
 listeners, no users, and no credentials of its own. It stores and forwards
 whatever feedback your application gives it, so feedback deserves the same
@@ -89,7 +110,11 @@ identifiers, never by formatting values into statements. The credentials in
 
 Dependencies are declared with bounded version ranges, and releases are built
 and published by GitHub Actions using PyPI Trusted Publishing, without
-long-lived API tokens.
+long-lived API tokens. Every release has a build provenance attestation and
+a CycloneDX software bill of materials (SBOM) attached to its GitHub
+release. CodeQL scans the Python code and the GitHub Actions workflows.
+Check a downloaded file with
+`gh attestation verify <file> --repo smuniharish/feedback-manager`.
 
 ## Reporting a vulnerability
 

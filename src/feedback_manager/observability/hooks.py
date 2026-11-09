@@ -7,9 +7,10 @@ OpenTelemetry, LangSmith, Grafana, or any other backend.
 
 from __future__ import annotations
 
+from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
+from typing import TYPE_CHECKING, Any
 
 from feedback_manager import _logging
 
@@ -57,8 +58,7 @@ class ObservabilityEvent:
     attributes: Mapping[str, Any] = field(default_factory=dict)
 
 
-@runtime_checkable
-class ObservabilitySink(Protocol):
+class ObservabilitySink(ABC):
     """Receives `ObservabilityEvent` instances.
 
     ``emit`` is called inline on the feedback path, so it must return quickly:
@@ -66,12 +66,12 @@ class ObservabilitySink(Protocol):
     raised by a sink are logged and never interrupt feedback processing.
     """
 
+    @abstractmethod
     def emit(self, event: ObservabilityEvent) -> None:
         """Receive one event."""
-        ...
 
 
-class LoggingObservabilitySink:
+class LoggingObservabilitySink(ObservabilitySink):
     """The default sink: one structured log record per event.
 
     ``feedback.failed`` is logged at ``WARNING`` and every other event at ``INFO``.
@@ -91,7 +91,7 @@ class LoggingObservabilitySink:
         )
 
 
-class NoOpObservabilitySink:
+class NoOpObservabilitySink(ObservabilitySink):
     """A sink that discards every event."""
 
     def emit(self, event: ObservabilityEvent) -> None:

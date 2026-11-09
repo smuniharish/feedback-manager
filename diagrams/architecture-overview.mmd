@@ -6,11 +6,11 @@ flowchart TB
 
     subgraph integrations["feedback_manager.integrations"]
         callbacks["FeedbackCallbackHandler<br/>capture_tool_feedback"]
-        hitl["HumanInTheLoopBridge"]
+        hitl["LangGraphHumanInTheLoopBridge"]
     end
 
     manager["<b>FeedbackManager</b><br/>validates, redacts, correlates,<br/>links provenance, runs the lifecycle"]
-    xai["langgraph-xai<br/>XAIRuntime"]
+    xai["agxai<br/>XAIRuntime"]
 
     store[("FeedbackStore")]
     handlers["Router and handlers"]

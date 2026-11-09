@@ -1,6 +1,6 @@
-"""Link feedback to the langgraph-xai records of the run it is about.
+"""Link feedback to the agxai records of the run it is about.
 
-Pass an `XAIRuntime` to `FeedbackManager` and feedback carries a
+Pass an `AgxaiProvenanceProvider` to `FeedbackManager` and feedback carries a
 `FeedbackProvenanceReference`: during the run it includes the latest decision
 and its evidence; after the run it is resolved from the provenance store.
 
@@ -12,9 +12,9 @@ Run with:
 import asyncio
 from typing import Any, TypedDict
 
+from agxai import DecisionType, EvidenceType, XAIRuntime
 from langchain_core.runnables import RunnableConfig
 from langgraph.graph import END, START, StateGraph
-from langgraph_xai import DecisionType, EvidenceType, XAIRuntime
 
 from feedback_manager import (
     ExecutionContext,
@@ -24,10 +24,11 @@ from feedback_manager import (
     FeedbackTarget,
     FeedbackTargetType,
 )
-from feedback_manager.integrations.langgraph import execution_context_from_config
+from feedback_manager.integrations.frameworks.langchain import execution_context_from_config
+from feedback_manager.integrations.provenance import AgxaiProvenanceProvider
 
 xai = XAIRuntime(application_id="support-bot", tenant_id="acme", graph_id="refunds")
-manager = FeedbackManager(xai_runtime=xai)
+manager = FeedbackManager(provenance_provider=AgxaiProvenanceProvider(xai))
 
 
 class State(TypedDict, total=False):

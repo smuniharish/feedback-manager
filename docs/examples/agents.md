@@ -62,8 +62,8 @@ Feedback: evaluator/quality  {'check': 'mentions the /export known issue', 'pass
 ## 08 deepagents with human approval
 
 A `deepagents` agent maintains release notes. Its `edit_file` tool requires
-approval (`interrupt_on`), and the agent is instrumented by `langgraph-xai`.
-When the agent proposes an edit, `HumanInTheLoopBridge` records the approval
+approval (`interrupt_on`), and the agent is instrumented by `agxai`.
+When the agent proposes an edit, `LangGraphHumanInTheLoopBridge` records the approval
 request, linked to the proposed tool call and to the paused run's
 provenance, and then the reviewer's decision. The agent edits a temporary copy
 of `examples/mcp_workspace`, so the repository is never modified.
@@ -75,7 +75,7 @@ of `examples/mcp_workspace`, so the repository is never modified.
 ```text title="Output"
 The agent proposes edit_file({'file_path': '/release_notes.md', 'old_string': '- The `/export` endpoint can time out under heavy load.', 'new_string': '- The `/export` endpoint was fixed in v0.4.0.'})
 Approval request a2b945e5-111a-445f-8100-581d1f29b03d (received)
-  linked to: langgraph-xai run 905fd076-bad6-408f-a251-956517261e36 (interrupted): 9 node execution(s), 2 tool execution(s)
+  linked to: agxai run 905fd076-bad6-408f-a251-956517261e36 (interrupted): 9 node execution(s), 2 tool execution(s)
 Decision recorded: resolved, resolution={'response': {'decisions': [{'type': 'approve'}]}, 'approved': True}
 Edited file:
 # Release notes

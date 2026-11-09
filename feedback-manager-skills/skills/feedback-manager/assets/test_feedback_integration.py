@@ -29,12 +29,13 @@ from feedback_manager import (
     FeedbackTarget,
 )
 from feedback_manager.contracts import FeedbackHandler, FeedbackHandlerResult
-from feedback_manager.integrations.langchain import FeedbackCallbackHandler
-from feedback_manager.integrations.langgraph import (
-    HumanInTheLoopBridge,
+from feedback_manager.integrations.frameworks.langchain import (
+    FeedbackCallbackHandler,
+    LangGraphHumanInTheLoopBridge,
     execution_context_from_snapshot,
     extract_interrupts,
 )
+from feedback_manager.observability import ObservabilitySink
 from feedback_manager.policies import FailureMode, FailurePolicy, FeedbackStage
 from feedback_manager.routing import DefaultFeedbackRouter, RoutingRule, by_category
 
@@ -47,7 +48,7 @@ pytestmark = pytest.mark.asyncio
 STRICT = FailurePolicy(modes=dict.fromkeys(FeedbackStage, FailureMode.BLOCKING))
 
 
-class RecordingSink:
+class RecordingSink(ObservabilitySink):
     """Keeps the name of every observability event, for assertions."""
 
     def __init__(self) -> None:
@@ -165,7 +166,7 @@ async def test_human_decisions_are_recorded(
     manager: FeedbackManager, response: str, approved: bool, status: FeedbackStatus
 ) -> None:
     graph = build_approval_graph()
-    bridge = HumanInTheLoopBridge(manager)
+    bridge = LangGraphHumanInTheLoopBridge(manager)
     config: Any = {"configurable": {"thread_id": f"approval-{response}"}}
 
     (pending,) = extract_interrupts(await graph.ainvoke({"action": "refund"}, config))

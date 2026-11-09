@@ -1,0 +1,21 @@
+flowchart TD
+    Host["Authenticated host / agent framework"] --> Manager["FeedbackManager: validate, redact, correlate"]
+    Manager --> Feedback["FeedbackStore: original records"]
+    Feedback --> Changes["Optional atomic change journal"]
+    Manager --> Jobs["LearningJobStore: enqueue, lease, retry, dead-letter"]
+    Changes --> Recovery["Replay and checkpoint after enqueue"]
+    Recovery --> Jobs
+    Jobs --> Signals["Scoped signal extraction"]
+    Signals --> Patterns["Patterns, evidence and confidence"]
+    Patterns --> Artifacts["ArtifactRepository: candidate versions"]
+    Artifacts --> Review["Human review and validation policy"]
+    Review --> Active["Explicit activation"]
+    Active --> Indexer["Idempotent projection indexing / reindex"]
+    Indexer --> Vector["LanceDB / VectorStore"]
+    Indexer --> Graph["LadybugDB / GraphStore"]
+    Vector --> Retrieval["Bounded hybrid retrieval"]
+    Graph --> Retrieval
+    Artifacts --> Retrieval
+    Retrieval --> Checks["Recheck authority, review, version and scope"]
+    Checks --> Context["Untrusted learned context"]
+    Context --> Host

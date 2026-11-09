@@ -12,16 +12,19 @@ class ExecutionContext(BaseModel):
 
     Every field is optional: feedback stays useful with partial context, such
     as a human comment that carries no run information at all. The helpers in
-    `feedback_manager.integrations.langgraph` fill these fields from a
-    LangGraph or LangChain config, or from a paused graph's state snapshot.
+    `feedback_manager.integrations.frameworks` fill these fields from an
+    agent framework, for example a LangGraph config or state snapshot, or a
+    plain mapping from a custom agent.
 
     Attributes:
-        application_id: The application, as used by ``langgraph-xai``.
-        tenant_id: The tenant, as used by ``langgraph-xai``.
-        graph_id: The graph, as used by ``langgraph-xai``.
+        application_id: The application, as used by ``agxai``.
+        tenant_id: The tenant, as used by ``agxai``.
+        graph_id: The graph, as used by ``agxai``.
+        agent_id: The agent that produced the target, which tells agents of
+            a multi-agent system apart.
         thread_id: The LangGraph thread.
-        run_id: The run. Inside a ``langgraph-xai`` instrumented call this is
-            the ``langgraph-xai`` run ID, which provenance resolution uses.
+        run_id: The run. Inside an ``agxai`` instrumented call this is
+            the ``agxai`` run ID, which provenance resolution uses.
         checkpoint_id: The LangGraph checkpoint.
         node_id: The graph node.
         task_id: The LangGraph task.
@@ -37,6 +40,7 @@ class ExecutionContext(BaseModel):
     application_id: Identifier | None = None
     tenant_id: Identifier | None = None
     graph_id: Identifier | None = None
+    agent_id: Identifier | None = None
     thread_id: Identifier | None = None
     run_id: Identifier | None = None
     checkpoint_id: Identifier | None = None

@@ -1,0 +1,199 @@
+[project]
+site_name = "feedback-manager"
+site_description = "Framework-agnostic feedback management and agent learning: capture, correlate, store, route, resolve, and learn from feedback for LangChain, LangGraph, and custom agents."
+site_url = "https://feedback-manager.readthedocs.io/en/latest/"
+repo_name = "smuniharish/feedback-manager"
+repo_url = "https://github.com/smuniharish/feedback-manager"
+edit_uri = "edit/master/docs/"
+site_author = "smuniharish"
+copyright = "Copyright &copy; feedback-manager contributors. Released under the Apache License 2.0."
+docs_dir = "docs"
+site_dir = "site"
+watch = ["src", "examples"]
+extra_css = ["stylesheets/extra.css"]
+
+nav = [
+  { "Home" = "index.md" },
+  { "Getting started" = [
+    "getting-started/index.md",
+    { "Installation" = "getting-started/installation.md" },
+    { "Quickstart" = "getting-started/quickstart.md" },
+    { "Configuration" = "getting-started/configuration.md" },
+  ] },
+  { "User guide" = [
+    "guide/index.md",
+    { "Concepts" = [
+      "concepts/index.md",
+      { "Feedback-to-learning lifecycle" = "concepts/learning.md" },
+      { "Feedback events" = "concepts/feedback-events.md" },
+      { "Lifecycle" = "concepts/lifecycle.md" },
+      { "Correlation" = "concepts/correlation.md" },
+      { "Provenance" = "concepts/provenance.md" },
+      { "Routing and handlers" = "concepts/routing.md" },
+      { "Storage and queries" = "concepts/storage.md" },
+      { "Subscriptions and streams" = "concepts/delivery.md" },
+      { "Observability" = "concepts/observability.md" },
+    ] },
+    { "How-to guides" = [
+      "how-to/index.md",
+      { "Record LangChain failures" = "how-to/langchain-failures.md" },
+      { "Record human-in-the-loop decisions" = "how-to/langgraph-hitl.md" },
+      { "Integrate a custom agent framework" = "how-to/custom-agents.md" },
+      { "Learn from scoped feedback" = "how-to/basic-learning.md" },
+      { "Automatic learning and recovery" = "how-to/background-learning.md" },
+      { "Embeddings and hybrid retrieval" = "how-to/hybrid-retrieval.md" },
+      { "Link feedback to provenance" = "how-to/xai-provenance.md" },
+      { "Store feedback in your database" = "how-to/custom-store.md" },
+      { "Bring your own components" = "how-to/customize-components.md" },
+      { "Route feedback to handlers" = "how-to/routing.md" },
+      { "Configure failure isolation" = "how-to/failure-isolation.md" },
+      { "Expire stale feedback" = "how-to/expire-feedback.md" },
+      { "Test your integration" = "how-to/testing.md" },
+    ] },
+    { "Troubleshooting" = "operations/troubleshooting.md" },
+    { "FAQ" = "faq.md" },
+  ] },
+  { "Examples" = [
+    "examples/index.md",
+    { "Basics" = "examples/basics.md" },
+    { "Agents" = "examples/agents.md" },
+    { "Production" = "examples/production.md" },
+  ] },
+  { "Architecture" = "design.md" },
+  { "Operations" = [
+    { "Reliability" = "operations/reliability.md" },
+    { "Deployment" = "operations/deployment.md" },
+  ] },
+  { "Agent Skills" = [
+    "agent-skills/index.md",
+    { "feedback-manager" = "agent-skills/feedback-manager.md" },
+    { "feedback-manager-learning" = "agent-skills/feedback-manager-learning.md" },
+    { "feedback-manager-extend" = "agent-skills/feedback-manager-extend.md" },
+    { "Install in your agent" = "agent-skills/install.md" },
+    { "Evaluation" = "agent-skills/evaluation.md" },
+  ] },
+  { "Security" = "operations/security.md" },
+  { "Benchmarks" = "benchmarks.md" },
+  { "API reference" = [
+    "api/index.md",
+    { "FeedbackManager" = "api/manager.md" },
+    { "Domain model" = "api/models.md" },
+    { "Contracts" = "api/contracts.md" },
+    { "Routing and handlers" = "api/routing.md" },
+    { "Policies" = "api/policies.md" },
+    { "Observability" = "api/observability.md" },
+    { "Integrations" = "api/integrations.md" },
+    { "Learning and retrieval" = "api/learning.md" },
+    { "Testing kits" = "api/testing.md" },
+    { "Errors" = "api/errors.md" },
+  ] },
+  { "Project" = [
+    { "Changelog" = "development/changelog.md" },
+    { "Contributing" = "development/contributing.md" },
+  ] },
+]
+
+# `zensical build --strict` fails on any of these.
+[project.validation]
+invalid_links = true
+invalid_link_anchors = true
+unresolved_references = true
+unresolved_footnotes = true
+unused_definitions = true
+unused_footnotes = true
+shadowed_definitions = true
+shadowed_footnotes = true
+
+[project.theme]
+language = "en"
+font = false
+logo = "assets/logo.svg"
+favicon = "assets/logo.svg"
+features = [
+  "content.action.edit",
+  "content.code.annotate",
+  "content.code.copy",
+  "content.tabs.link",
+  "navigation.footer",
+  "navigation.indexes",
+  "navigation.instant",
+  "navigation.sections",
+  "navigation.tabs",
+  "navigation.top",
+  "navigation.tracking",
+  "search.highlight",
+  "search.share",
+  "search.suggest",
+  "toc.follow",
+]
+
+[project.theme.icon]
+repo = "fontawesome/brands/github"
+
+[[project.theme.palette]]
+media = "(prefers-color-scheme: light)"
+scheme = "default"
+primary = "indigo"
+accent = "indigo"
+toggle.icon = "lucide/moon"
+toggle.name = "Switch to dark mode"
+
+[[project.theme.palette]]
+media = "(prefers-color-scheme: dark)"
+scheme = "slate"
+primary = "indigo"
+accent = "indigo"
+toggle.icon = "lucide/sun"
+toggle.name = "Switch to light mode"
+
+[[project.extra.social]]
+icon = "fontawesome/brands/github"
+link = "https://github.com/smuniharish/feedback-manager"
+name = "feedback-manager on GitHub"
+
+[[project.extra.social]]
+icon = "fontawesome/brands/python"
+link = "https://pypi.org/project/feedback-manager/"
+name = "feedback-manager on PyPI"
+
+[project.plugins.search]
+
+# Click a diagram or screenshot to open it full size, with zoom.
+[project.plugins.glightbox]
+
+[project.plugins.mkdocstrings.handlers.python]
+paths = ["src"]
+
+[project.plugins.mkdocstrings.handlers.python.options]
+docstring_style = "google"
+extensions = [{ griffe_pydantic = { schema = false } }]
+show_source = false
+show_root_heading = true
+show_root_full_path = false
+show_symbol_type_heading = true
+show_symbol_type_toc = true
+merge_init_into_class = true
+separate_signature = true
+show_signature_annotations = true
+signature_crossrefs = true
+members_order = "source"
+heading_level = 3
+
+[project.markdown_extensions]
+abbr = {}
+admonition = {}
+attr_list = {}
+def_list = {}
+footnotes = {}
+md_in_html = {}
+tables = {}
+"pymdownx.betterem" = {}
+"pymdownx.details" = {}
+"pymdownx.emoji" = { emoji_index = "zensical.extensions.emoji.twemoji", emoji_generator = "zensical.extensions.emoji.to_svg" }
+"pymdownx.highlight" = { anchor_linenums = true }
+"pymdownx.inlinehilite" = {}
+"pymdownx.keys" = {}
+"pymdownx.snippets" = { base_path = ["."], check_paths = true }
+"pymdownx.superfences" = {}
+"pymdownx.tabbed" = { alternate_style = true }
+"toc" = { permalink = true }

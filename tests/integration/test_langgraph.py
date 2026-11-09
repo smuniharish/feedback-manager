@@ -6,10 +6,10 @@ from typing import TYPE_CHECKING, Any, TypedDict
 from uuid import UUID, uuid4
 
 import pytest
+from agxai import RUN_ID_METADATA_KEY, XAIRuntime
 from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.graph import END, START, StateGraph
 from langgraph.types import Interrupt, interrupt
-from langgraph_xai import RUN_ID_METADATA_KEY, XAIRuntime
 
 from feedback_manager import (
     ExecutionContext,
@@ -22,9 +22,9 @@ from feedback_manager import (
     FeedbackTargetType,
     FeedbackValidationError,
 )
-from feedback_manager.integrations.langgraph import (
+from feedback_manager.integrations.frameworks.langchain import (
     INTERRUPT_KEY,
-    HumanInTheLoopBridge,
+    LangGraphHumanInTheLoopBridge,
     execution_context_from_config,
     execution_context_from_snapshot,
     extract_interrupts,
@@ -179,7 +179,7 @@ class TestExecutionContextFromSnapshot:
 class TestHumanInTheLoopBridge:
     async def test_approval_round_trip(self) -> None:
         manager = FeedbackManager()
-        bridge = HumanInTheLoopBridge(manager)
+        bridge = LangGraphHumanInTheLoopBridge(manager)
         graph = _approval_graph()
         config: Any = {"configurable": {"thread_id": "t-1"}}
         (pending,) = extract_interrupts(await graph.ainvoke({}, config=config))
@@ -205,7 +205,7 @@ class TestHumanInTheLoopBridge:
 
     async def test_rejection_and_conflicting_decisions(self) -> None:
         manager = FeedbackManager()
-        bridge = HumanInTheLoopBridge(manager)
+        bridge = LangGraphHumanInTheLoopBridge(manager)
         request = await bridge.request(target=TARGET, prompt="ship it?")
 
         rejected = await bridge.resolve(
@@ -220,7 +220,7 @@ class TestHumanInTheLoopBridge:
     @pytest.mark.parametrize("advanced_to", ["acknowledge", "mark_handled"])
     async def test_resolve_continues_from_wherever_the_request_is(self, advanced_to: str) -> None:
         manager = FeedbackManager()
-        bridge = HumanInTheLoopBridge(manager)
+        bridge = LangGraphHumanInTheLoopBridge(manager)
         request = await bridge.request(target=TARGET, prompt="ok?")
         await manager.acknowledge(request.feedback_id)
         if advanced_to == "mark_handled":
@@ -232,7 +232,7 @@ class TestHumanInTheLoopBridge:
         assert resolved.resolution == {"response": "yes", "approved": None}
 
     async def test_request_validation(self) -> None:
-        bridge = HumanInTheLoopBridge(FeedbackManager())
+        bridge = LangGraphHumanInTheLoopBridge(FeedbackManager())
         pending = Interrupt(value="approve?", id="interrupt-1")
 
         with pytest.raises(FeedbackValidationError, match="interrupt or a prompt"):
@@ -247,7 +247,7 @@ class TestHumanInTheLoopBridge:
             await bridge.resolve(uuid4(), response="yes")
 
     async def test_prompts_become_json(self) -> None:
-        bridge = HumanInTheLoopBridge(FeedbackManager())
+        bridge = LangGraphHumanInTheLoopBridge(FeedbackManager())
         pending = Interrupt(value="ignored", id="interrupt-1")
         marker = object()
 
@@ -273,12 +273,17 @@ class TestHumanInTheLoopBridge:
         check = next(item for item in pending if item.value == {"question": "check?"})
 
         partial_result = await graph.ainvoke(
-            HumanInTheLoopBridge.resume_command("checked", interrupt_id=check.id), config=config
+            LangGraphHumanInTheLoopBridge(FeedbackManager()).resume_command(
+                "checked", interrupt_id=check.id
+            ),
+            config=config,
         )
 
         assert partial_result.get("other") == "checked"
         assert [item.value for item in extract_interrupts(partial_result)] == [{"question": "ask?"}]
-        assert HumanInTheLoopBridge.resume_command("yes").resume == "yes"
+        assert (
+            LangGraphHumanInTheLoopBridge(FeedbackManager()).resume_command("yes").resume == "yes"
+        )
 
 
 class TestExtractInterrupts:

@@ -14,7 +14,7 @@ runnable, including LangGraph nodes, tools, models, and retrievers.
 from langchain_core.runnables import RunnableConfig
 
 from feedback_manager import FeedbackManager
-from feedback_manager.integrations.langchain import FeedbackCallbackHandler
+from feedback_manager.integrations.frameworks.langchain import FeedbackCallbackHandler
 
 manager = FeedbackManager()
 config: RunnableConfig = {
@@ -79,7 +79,7 @@ interrupted generation.
 - **Payload:** `error` (the message), `error_type` (the exception class), and
   `operation` (the name of the failing tool, model, or node).
 - **Execution context:** the thread, node, and tool call of the failing run
-  and, in a `langgraph-xai` instrumented graph, the run ID that links the
+  and, in an `agxai` instrumented graph, the run ID that links the
   feedback to its [provenance](../concepts/provenance.md).
 
 LangGraph control flow is not a failure: interrupts and other `GraphBubbleUp`
@@ -97,7 +97,7 @@ callbacks. Wrap the call in `capture_tool_feedback` to get the same `TOOL`
 feedback:
 
 ```python
-from feedback_manager.integrations.langchain import capture_tool_feedback
+from feedback_manager.integrations.frameworks.langchain import capture_tool_feedback
 
 async with capture_tool_feedback(manager, tool_call_id=call_id, tool_name="search"):
     result = await mcp_session.call_tool("search", arguments)

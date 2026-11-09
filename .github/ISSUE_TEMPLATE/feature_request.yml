@@ -1,0 +1,44 @@
+name: Feature request
+description: Suggest an idea or capability for feedback-manager
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the suggestion. Please note that `feedback-manager` has
+        deliberate scope boundaries (see the project's README): it is not an
+        agent runtime, an orchestration framework, a policy engine, a UI, or
+        a model-training system. Requests that fit "feedback management and
+        agent-level learning" (capture, lifecycle, routing, provenance,
+        learned artifacts, retrieval, framework adapters) are the best fit.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem are you trying to solve?
+      description: Describe the use case or limitation you've run into.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: >
+        What would you like to see added or changed? If you have an idea for
+        the API shape (a new abstract base class, model field, store,
+        adapter, or retrieval strategy), sketch it here.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Any alternative approaches or workarounds you've tried.
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: Links, references, or examples from other projects that motivate this request.

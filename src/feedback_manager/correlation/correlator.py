@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from feedback_manager.contracts.correlator import FeedbackCorrelator
+
 if TYPE_CHECKING:
     from feedback_manager.core.events import FeedbackEvent
 
@@ -24,7 +26,7 @@ def default_correlation_id(feedback: FeedbackEvent) -> str:
     return str(feedback.feedback_id)
 
 
-class DefaultFeedbackCorrelator:
+class DefaultFeedbackCorrelator(FeedbackCorrelator):
     """Groups feedback by run, then thread, then checkpoint; see `default_correlation_id`."""
 
     async def correlate(self, feedback: FeedbackEvent) -> str:
