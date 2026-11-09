@@ -32,54 +32,89 @@ LangChain, LangGraph, custom Python agents, and future frameworks.
   <img src="https://raw.githubusercontent.com/smuniharish/feedback-manager/master/docs/assets/diagrams/architecture-overview.png" alt="feedback-manager architecture" width="720">
 </p>
 
-## Features
+## Why feedback-manager
 
-- **One model for every kind of feedback.** Human corrections, approvals, tool
-  failures, evaluator scores, and interruptions share one immutable event, with
-  open sources, categories, and target types you can extend without
-  subclassing.
+A support agent drafts a refund reply. A reviewer corrects it, a tool times
+out on the next run, and an evaluator scores the answer low. Today that
+feedback usually ends up scattered:
+
+- **Feedback lives in many places.** Corrections sit in a UI database, tool
+  errors in logs, evaluator scores in a tracing tool, and approvals inside the
+  agent framework's interrupt state.
+- **It is detached from what it is about.** A score without the run, node or
+  tool call it refers to can't be acted on or audited.
+- **Nobody owns its follow-up.** Feedback is recorded but never acknowledged,
+  handled or resolved, and concurrent workers overwrite each other's updates.
+- **Agents repeat the same mistakes.** The lesson in a correction never reaches
+  the next run, or it reaches it unreviewed and unscoped.
+
+How feedback-manager addresses each one:
+
+| Problem | What feedback-manager does |
+| --- | --- |
+| Feedback in many places | One immutable, typed event for corrections, approvals, tool failures, evaluator scores and interruptions, captured where they happen |
+| Detached from its subject | Every event carries its target and execution context, is correlated with related feedback, and links to [agxai](https://pypi.org/project/agxai/) provenance |
+| No owner for follow-up | Routing to your handlers, and an explicit lifecycle whose transitions are compare-and-set, so concurrent updates never overwrite each other |
+| Repeated mistakes | A learning engine turns scoped feedback into versioned lessons that only reach an agent after human review and explicit activation |
+
+feedback-manager doesn't run your agents or replace your tracing. Your
+framework keeps owning execution, LangSmith and OpenTelemetry keep showing what
+ran, and agxai records why it was decided; feedback-manager manages the
+feedback about all of it.
+
+## Highlights
+
 - **Captured where it happens.** A LangChain callback handler records tool,
-  model, retriever, and node failures once, with the thread, node, and tool call
+  model, retriever and node failures once, with the thread, node and tool call
   they happened in. A bridge records LangGraph human-in-the-loop requests and
-  decisions around native `interrupt()` and `Command(resume=...)`.
+  decisions around `interrupt()` and `Command(resume=...)`.
 - **An explicit, race-free lifecycle.** Feedback moves through a validated state
-  machine. Transitions are compare-and-set operations on the store, so
-  concurrent updates never overwrite each other. Retried calls are idempotent;
-  crash recovery uses an optional durable change journal, not exactly-once delivery.
-- **Linked to provenance.** With an [agxai](https://pypi.org/project/agxai/)
-  runtime, feedback points at the run, node, tool call, decision, and evidence
-  it is about.
-- **Isolated from failures.** A failing handler, subscriber, router, or
+  machine, retried submissions are idempotent, and an optional durable change
+  journal supports crash recovery.
+- **Learning that stays reviewable.** Automatic, scoped background learning
+  builds candidate lessons with evidence and confidence. Human review and
+  explicit activation are separate from feedback approval, and original
+  feedback is never rewritten.
+- **Hybrid retrieval.** Structured, vector (LanceDB), graph (LadybugDB) and
+  hybrid retrieval over learned artifacts. Vector and graph records are
+  rebuildable hints: every result is revalidated against the current artifact,
+  its review state and its scope.
+- **Isolated from failures.** A failing handler, subscriber, router or
   observability sink never loses stored feedback. Choose per stage whether a
   failure is logged or raised.
-- **Bring your own infrastructure.** Swap the store, router, correlator,
-  policies, and observability sink through small, typed contracts. Complete
-  PostgreSQL and SQLite stores are included as examples.
-- **Feedback-to-learning loop.** Automatic scoped background learning, independent
-  evidence, confidence, versioned artifacts, separate human review and explicit
-  activation. Disable learning with `learning=False` for feedback-only use.
-- **Real optional storage.** LanceDB vectors, LadybugDB relationships and bounded,
-  explainable structured/vector/graph/hybrid retrieval over authoritative artifacts.
-- **Explicit recovery.** Leases, retry/backoff, dead letters and durable change-feed
-  checkpoints; memory defaults remain ephemeral. A complete single-host durable
-  example demonstrates recovery and private multi-agent context.
+- **Extensible through ABCs.** Subclass `FrameworkAdapter` for Agno, CrewAI or
+  your own loop, and `FeedbackStore`, `VectorStore`, `GraphStore` or
+  `EmbeddingProvider` for your infrastructure. Every agxai, LanceDB and
+  LadybugDB component can be injected, and `feedback_manager.testing` checks
+  your implementations against the contracts.
+- **Small and typed.** The core depends on agxai, Pydantic and structlog,
+  ships type hints, and is tested on Python 3.12 to 3.15 with 100% statement
+  and branch coverage.
 
-## Install
+## Installation
 
 ```bash
-pip install feedback-manager                # core: agxai, pydantic, structlog
-pip install "feedback-manager[langchain]"   # + LangChain and LangGraph adapter
+pip install "feedback-manager[langchain]"   # with LangChain and LangGraph
+pip install feedback-manager                # core only, for any other framework
 ```
 
-Requires Python 3.12+. Other extras: `lancedb`, `ladybugdb`, `otel`, and `all`.
+Optional extras:
 
-For the complete learning workflow, see
-[background learning and recovery](https://feedback-manager.readthedocs.io/en/latest/how-to/background-learning/)
-and [hybrid retrieval](https://feedback-manager.readthedocs.io/en/latest/how-to/hybrid-retrieval/).
-From a checkout, run `uv run --all-extras python examples/15_background_learning.py`
-for a synthetic, explicitly reviewed, multi-agent end-to-end example.
+| Extra | Adds |
+| --- | --- |
+| `langchain` | LangChain and LangGraph capture, human-in-the-loop bridge and learned-context injection |
+| `lancedb` | `LanceDBVectorStore` for vector and hybrid retrieval |
+| `ladybugdb` | `LadybugGraphStore` for graph and hybrid retrieval |
+| `otel` | `OpenTelemetryObservabilitySink` |
+| `all` | Every extra above |
+
+The `lancedb` and `ladybugdb` extras need Python 3.14 or earlier until those
+databases publish Python 3.15 wheels.
 
 ## Quickstart
+
+A person corrects a generated answer. The correction is recorded against the
+answer and its conversation, taken through its lifecycle and queried back:
 
 ```python
 import asyncio
@@ -128,7 +163,7 @@ resolved: {'applied_to': 'faq'}
 human correction gen-42 resolved
 ```
 
-Record every tool, model, and node failure of a LangChain or LangGraph agent,
+Record every tool, model and node failure of a LangChain or LangGraph agent,
 without changing your error handling:
 
 ```python
@@ -137,31 +172,143 @@ from feedback_manager.integrations.frameworks.langchain import FeedbackCallbackH
 await graph.ainvoke(inputs, {"callbacks": [FeedbackCallbackHandler(manager)]})
 ```
 
-## How it relates to LangGraph, LangSmith, and agxai
+The [quickstart](https://feedback-manager.readthedocs.io/en/latest/getting-started/quickstart/)
+walks through it step by step.
 
-LangGraph runs your agents and pauses them for human input. LangSmith and other
-tracing tools show what ran. [agxai](https://pypi.org/project/agxai/)
-records why it was decided. `feedback-manager` manages the feedback about all of
-it: what people, evaluators, and failing components said, what it refers to,
-who handles it, and how it was resolved.
+### Learn from feedback
+
+Two corrections with the same lesson become a candidate. It reaches the agent
+only after a person reviews it and it is activated:
+
+```python
+from feedback_manager.learning import ArtifactScope
+from feedback_manager.learning.engine import LearningEngine
+from feedback_manager.learning.signals import LearningSignalExtractor
+from feedback_manager.retrieval import RetrievalRequest
+from feedback_manager.storage.artifacts import InMemoryArtifactRepository
+
+scope = ArtifactScope(tenant_id="example-tenant", agent_id="research-agent")
+engine = LearningEngine(InMemoryArtifactRepository())
+signals = [LearningSignalExtractor().extract(event, scope=scope).signal for event in corrections]
+
+candidate = (await engine.process(signals)).artifacts[0]
+await engine.request_review(scope, candidate.artifact_id)
+await engine.review(scope, candidate.artifact_id, reviewer="example-reviewer", approved=True)
+await engine.activate(scope, candidate.artifact_id)
+
+result = await engine.retrieve(
+    RetrievalRequest(scope=scope, agent_id="research-agent", task="validate results")
+)
+print(result.as_context())
+```
+
+Output:
+
+```text
+Improvement: Search, validate results, then execute.
+Search, validate results, then execute.
+```
+
+In production, `FeedbackManager` queues learning jobs for a background learner
+instead; see
+[background learning and recovery](https://feedback-manager.readthedocs.io/en/latest/how-to/background-learning/)
+and [hybrid retrieval](https://feedback-manager.readthedocs.io/en/latest/how-to/hybrid-retrieval/).
+
+### Your own framework
+
+The core never imports an agent framework. LangChain and LangGraph share one
+adapter, a dependency-free adapter covers hand-written loops, and other
+frameworks implement `FrameworkAdapter`. Program against the ABC and the same
+agent-side code works for all of them:
+
+```python
+from feedback_manager.integrations import FrameworkAdapter
+
+
+def wire(adapter: FrameworkAdapter, manager, engine):
+    extractor = adapter.context_extractor()
+    classifier = adapter.failure_classifier()
+    bridge = adapter.human_in_the_loop(manager)
+    injector = adapter.context_injector(engine)
+    return extractor, classifier, bridge, injector
+```
+
+See the [custom framework guide](https://feedback-manager.readthedocs.io/en/latest/how-to/custom-agents/).
+
+### Your own database
+
+Feedback is kept in memory by default. Subclass `FeedbackStore` and pass it to
+`FeedbackManager`; `feedback_manager.testing.FeedbackStoreContract` checks your
+store against the contract:
+
+```python
+from feedback_manager import FeedbackManager
+from feedback_manager.contracts import FeedbackStore
+
+
+class MyStore(FeedbackStore):
+    async def create(self, feedback): ...
+    async def get(self, feedback_id): ...
+    async def transition(self, feedback_id, status, *, expected, resolution=None): ...
+    async def query(self, query): ...
+
+
+manager = FeedbackManager(store=MyStore())
+```
+
+See the [SQLite store](https://feedback-manager.readthedocs.io/en/latest/how-to/custom-store/)
+and [bring your own components](https://feedback-manager.readthedocs.io/en/latest/how-to/customize-components/).
+
+## Benchmarks
+
+Each operation timed 1,000 times with the default in-memory stores:
+
+| Scenario | p50 ms | p95 ms |
+| --- | ---: | ---: |
+| `submit`, learning off | 0.13 | 0.21 |
+| `submit`, learning on | 0.21 | 0.37 |
+| `lifecycle`: acknowledge, handle, resolve | 0.15 | 0.29 |
+| `retrieve`, structured, 50 lessons | 21.0 | 30.5 |
+| `retrieve`, hybrid with LanceDB, 50 lessons | 102.1 | 132.3 |
+
+Measured on one machine; see
+[Benchmarks](https://feedback-manager.readthedocs.io/en/latest/benchmarks/) for
+the method, memory use and how to reproduce.
+
+## Examples
+
+Complete programs in [`examples/`](https://github.com/smuniharish/feedback-manager/tree/master/examples),
+each exercised by the test suite:
+
+- [Human correction](https://feedback-manager.readthedocs.io/en/latest/examples/basics/#01-human-correction)
+- [Human-in-the-loop approval](https://feedback-manager.readthedocs.io/en/latest/examples/basics/#02-human-in-the-loop-approval)
+- [Tool failure](https://feedback-manager.readthedocs.io/en/latest/examples/basics/#03-tool-failure)
+- [Provenance with agxai](https://feedback-manager.readthedocs.io/en/latest/examples/basics/#06-provenance)
+- [Custom agent](https://feedback-manager.readthedocs.io/en/latest/how-to/custom-agents/)
+- [Background learning with LanceDB and LadybugDB](https://feedback-manager.readthedocs.io/en/latest/how-to/background-learning/)
+- [PostgreSQL store](https://feedback-manager.readthedocs.io/en/latest/examples/production/#postgresql-store)
 
 ## Documentation
 
 Full documentation: **[feedback-manager.readthedocs.io](https://feedback-manager.readthedocs.io/)**
 
-- [Quickstart](https://feedback-manager.readthedocs.io/en/latest/getting-started/quickstart/)
-- [Concepts](https://feedback-manager.readthedocs.io/en/latest/concepts/)
-- [How-to guides](https://feedback-manager.readthedocs.io/en/latest/how-to/)
+- [Getting started](https://feedback-manager.readthedocs.io/en/latest/getting-started/)
+- [User guide](https://feedback-manager.readthedocs.io/en/latest/guide/)
 - [Examples](https://feedback-manager.readthedocs.io/en/latest/examples/)
 - [API reference](https://feedback-manager.readthedocs.io/en/latest/api/)
 
-Changes are listed in the
-[changelog](https://github.com/smuniharish/feedback-manager/blob/master/CHANGELOG.md).
 Three [Agent Skills](https://feedback-manager.readthedocs.io/en/latest/agent-skills/)
-teach coding agents such as Claude Code, Codex, Cursor, and GitHub Copilot to
-integrate `feedback-manager`, make agents learn from feedback, and extend it
-with your own components. Install them with
-`npx skills add smuniharish/feedback-manager`.
+teach coding agents such as Claude Code, Codex, Cursor and GitHub Copilot to
+use feedback-manager correctly. `feedback-manager` integrates it into your
+application, `feedback-manager-learning` makes agents learn from feedback, and
+`feedback-manager-extend` writes adapters and stores for your infrastructure:
+
+```bash
+npx skills add smuniharish/feedback-manager
+```
+
+feedback-manager follows semantic versioning. Changes are listed in the
+[changelog](https://github.com/smuniharish/feedback-manager/blob/master/CHANGELOG.md).
 
 ## Contributing
 
