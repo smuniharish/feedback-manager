@@ -103,6 +103,16 @@
     the traceback. Fix the failing component, or make the stage
     [blocking](../how-to/failure-isolation.md) to surface the error.
 
+## Storage
+
+??? question "`RuntimeError: Could not find lbug C API shared library` on Windows"
+    LadybugDB's Windows wheel links `libssl-3-x64.dll` and `libcrypto-3-x64.dll`
+    without bundling them, and loads the copies in your Python's `DLLs` folder.
+    The Python that uv installs (`uv python install`) ships them; the python.org
+    installer names them `libssl-3.dll` and `libcrypto-3.dll`, so the import
+    fails. Use a uv-managed Python for the `ladybugdb` extra on Windows, for
+    example `uv venv --managed-python`.
+
 ## Examples and infrastructure
 
 ??? question "`Psycopg cannot use the 'ProactorEventLoop' to run in async mode`"

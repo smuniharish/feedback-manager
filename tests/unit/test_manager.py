@@ -157,6 +157,42 @@ class TestSubmit:
         assert len(handler.seen) == 1
         assert sink.names.count("feedback.received") == 1
 
+    async def test_a_retry_that_loses_the_create_race_returns_the_winner_silently(
+        self, sink: RecordingSink, target: FeedbackTarget
+    ) -> None:
+        class RacingStore(InMemoryFeedbackStore):
+            """Misses the replay lookup, as if another worker stored the key just after it."""
+
+            async def query(self, query: FeedbackQuery) -> Sequence[FeedbackEvent]:
+                if query.idempotency_key is not None:
+                    return []
+                return await super().query(query)
+
+        store = RacingStore()
+        handler = Recorder()
+        notified: list[FeedbackEvent] = []
+        manager = FeedbackManager(
+            store=store,
+            router=DefaultFeedbackRouter(default_handlers=(handler,)),
+            observability_sink=sink,
+        )
+
+        async def subscriber(feedback: FeedbackEvent) -> None:
+            notified.append(feedback)
+
+        manager.subscribe(subscriber)
+        winner = await _submit(manager, target, idempotency_key="retry-1")
+        sink.events.clear()
+        notified.clear()
+        handler.seen.clear()
+
+        loser = await _submit(manager, target, idempotency_key="retry-1")
+
+        assert loser == winner
+        assert sink.names == []
+        assert notified == []
+        assert handler.seen == []
+
     async def test_replays_skip_redaction_correlation_and_provenance(
         self, sink: RecordingSink, target: FeedbackTarget
     ) -> None:
