@@ -13,8 +13,8 @@ changed.
 
 The agent loads the skill to turn corrections and failures into learned
 artifacts, run and recover the background learner, review and activate
-artifacts, set learning scopes, retrieve learned context with structured,
-vector, graph or hybrid retrieval, and inject lessons into an agent. It also
+artifacts, set learning scopes, retrieve learned context through RetrievalLoom,
+and inject lessons into an agent. It also
 loads it when no artifact is created, an artifact never becomes active,
 retrieval returns nothing, or jobs are dead-lettered.
 
@@ -30,8 +30,9 @@ it hands over to the [feedback-manager-extend skill](feedback-manager-extend.md)
        control.
     2. Submit feedback with a tenant and an agent, through `for_tenant` and
        the execution context.
-    3. Let the background learner process it. With a durable change source,
-       enter `async with manager:` at startup to recover earlier work.
+    3. Independently assess the feedback, record a separate acceptance decision,
+       and enqueue that assessment version. A feedback change feed does not
+       recover missed assessment enqueues.
     4. Review: artifacts start as `CANDIDATE`; a person requests review,
        approves, and activates them.
     5. Retrieve and inject before the agent runs, with the framework
@@ -39,20 +40,21 @@ it hands over to the [feedback-manager-extend skill](feedback-manager-extend.md)
 
 === "Durable learning"
 
-    1. Use a durable feedback store with a change source, a durable
-       `LearningJobStore`, and a durable `ArtifactRepository`.
+    1. Use durable feedback, experience, assessment, job and artifact stores,
+       and a feedback change source.
     2. Pass `require_durable_learning=True`, so an in-memory component is
        rejected at startup.
     3. Inspect dead-lettered jobs in the job store and requeue them with
        `replay_dead_letters()` once the cause is fixed.
 
-=== "Hybrid retrieval"
+=== "Retrieval customization"
 
-    1. Install the `lancedb` and `ladybugdb` extras.
-    2. Choose an `EmbeddingProvider` and keep one embedding space per index;
-       changing the model or its settings means reindexing.
-    3. Combine structured, vector and graph retrieval with hybrid ranking,
-       always inside one tenant and agent scope.
+    1. Use the default RetrievalLoom engine for offline keyword/fuzzy/sparse
+       search; it does not download a model.
+    2. When embeddings, graph traversal or durable indexes are required, inject
+       RetrievalLoom's native components and resources.
+    3. Treat indexes as projections and revalidate every hit against the
+       authoritative artifact, assessment, review and host-authenticated scope.
 
 Before finishing, the agent checks that:
 
@@ -68,7 +70,7 @@ feedback-manager-learning/
 ??? SKILL.md                          # workflow, rules, gotchas
 ??? references/
 ?   ??? learning.md                   # signals, evidence, validation, review
-?   ??? retrieval.md                  # strategies, LanceDB, LadybugDB, embeddings
+?   ??? retrieval.md                  # RetrievalLoom, scope, evidence, compatibility APIs
 ?   ??? operations.md                 # durability, retries, recovery
 ??? scripts/
 ?   ??? verify_learning.py            # offline end-to-end learning check
@@ -104,4 +106,4 @@ passes and `1` otherwise.
   the skill.
 - [Learn from scoped feedback](../how-to/basic-learning.md) and
   [automatic learning and recovery](../how-to/background-learning.md).
-- [Embeddings and hybrid retrieval](../how-to/hybrid-retrieval.md).
+- [Retrieval with RetrievalLoom](../how-to/hybrid-retrieval.md).

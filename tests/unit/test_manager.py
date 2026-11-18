@@ -419,6 +419,25 @@ class TestRouting:
 
 
 class TestObservabilityIsolation:
+    async def test_failure_events_do_not_expose_exception_contents(
+        self, sink: RecordingSink, target: FeedbackTarget, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        manager = FeedbackManager(
+            router=DefaultFeedbackRouter(default_handlers=(Exploding(),)),
+            observability_sink=sink,
+            learning=False,
+        )
+
+        with caplog.at_level(logging.WARNING):
+            event = await _submit(manager, target)
+
+        failure = next(item for item in sink.events if item.name == "feedback.failed")
+        assert failure.attributes["stage"] == "handler"
+        assert failure.attributes["error_type"] == "RuntimeError"
+        assert "handler exploded" not in repr(failure.attributes)
+        assert "handler exploded" not in caplog.text
+        assert await manager.get(event.feedback_id) == event
+
     async def test_a_failing_sink_never_breaks_processing(
         self, target: FeedbackTarget, caplog: pytest.LogCaptureFixture
     ) -> None:
@@ -434,7 +453,8 @@ class TestObservabilityIsolation:
 
         assert acknowledged.status is FeedbackStatus.ACKNOWLEDGED
         assert caplog.text.count("observability sink failed") == 2
-        assert caplog.records[0].exc_info is not None
+        assert all(record.exc_info is None for record in caplog.records)
+        assert "collector unreachable" not in caplog.text
 
 
 class FailingStore(InMemoryFeedbackStore):

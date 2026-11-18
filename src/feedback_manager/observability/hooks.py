@@ -48,8 +48,8 @@ class ObservabilityEvent:
         occurred_at: When it happened (UTC).
         attributes: Details: ``source``, ``category``, ``target_type``, and
             ``status`` always; ``handler_count`` and ``handled_count`` for
-            ``feedback.routed``; ``stage``, ``error_type``, and ``error`` for
-            ``feedback.failed``.
+            ``feedback.routed``; ``stage`` and ``error_type`` for
+            ``feedback.failed``. Exception contents are not emitted.
     """
 
     name: str

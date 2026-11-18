@@ -45,11 +45,11 @@ processed, and redaction, because storing unredacted data is never an
 acceptable fallback. Observability sinks are always isolated, because
 monitoring must not break the thing it monitors.
 
-**Small, typed contracts.** Stateful extension points (`FeedbackStore`,
-`FeedbackRouter`, `FeedbackHandler`, the policies) are abstract base classes,
-which document and enforce their methods. Single-method callables
-(`FeedbackCorrelator`, `FeedbackSubscriber`, `ObservabilitySink`) are
-protocols, which plain functions and objects satisfy without inheritance.
+**Abstract extension contracts.** Public extension points use abstract base
+classes rather than structural protocols, so required methods and lifecycle
+ownership are explicit and contract tests can exercise implementations before
+injection. Native downstream contracts remain owned by their respective
+packages.
 
 **Explicit background learning.** Managers share nothing. Learning is enabled by
 default with process-local storage and a lazily started worker; publication still
@@ -91,8 +91,9 @@ touching the core. See [Integrate a custom agent framework](how-to/custom-agents
 | `feedback_manager.retrieval` | Scoped retrieval of reviewed learned artifacts. |
 | `feedback_manager.errors` | The exception hierarchy. |
 
-Dependencies point inward: integrations depend on the core and contracts, and
-the core depends only on pydantic and the error types.
+Dependencies point inward: framework integrations depend on the core and
+contracts, while learned-artifact discovery delegates to RetrievalLoom. The
+core domain remains independent of framework runtimes.
 
 ## Non-goals
 

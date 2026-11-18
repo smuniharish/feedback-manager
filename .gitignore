@@ -36,3 +36,6 @@ Thumbs.db
 .env
 .env.*
 !.env.example
+
+# Keep local model weights out of version control.
+/models/

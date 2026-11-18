@@ -7,14 +7,20 @@ for any framework: only the adapter changes.
 
 import asyncio
 
+from _assessment_workflow import assess_demo_feedback
+
 from feedback_manager import FeedbackManager, FeedbackQuery, FeedbackTarget, FeedbackTargetType
 from feedback_manager.integrations import FrameworkAdapter, capture_tool_feedback
 from feedback_manager.integrations.frameworks.custom import CustomAgentAdapter, PendingInterrupt
 from feedback_manager.learning import ArtifactScope
+from feedback_manager.learning.assessment_verification import AssessmentVerifier
 from feedback_manager.learning.engine import LearningEngine
 from feedback_manager.learning.signals import LearningSignalExtractor
 from feedback_manager.retrieval import RetrievalRequest
+from feedback_manager.storage import InMemoryFeedbackStore
 from feedback_manager.storage.artifacts import InMemoryArtifactRepository
+from feedback_manager.storage.assessment import InMemoryAssessmentRepository
+from feedback_manager.storage.experience import InMemoryExperienceRepository
 
 
 async def search(query: str) -> str:
@@ -22,7 +28,8 @@ async def search(query: str) -> str:
 
 
 async def main() -> None:
-    manager = FeedbackManager(learning=False)
+    store = InMemoryFeedbackStore()
+    manager = FeedbackManager(store=store, learning=False)
     adapter: FrameworkAdapter = CustomAgentAdapter()
     scope = ArtifactScope(tenant_id="acme", agent_id="refund-agent")
 
@@ -60,9 +67,13 @@ async def main() -> None:
     print(f"decision: {decision.resolution}")
 
     # 4. A reviewed correction becomes context for the agent's next task.
-    engine = LearningEngine(InMemoryArtifactRepository())
+    verifier = AssessmentVerifier(
+        store, InMemoryExperienceRepository(), InMemoryAssessmentRepository()
+    )
+    engine = LearningEngine(InMemoryArtifactRepository(), assessment_verifier=verifier)
     extractor = LearningSignalExtractor()
     signals = []
+    events = []
     for run in ("run-1", "run-2"):
         event = await manager.submit(
             source="human",
@@ -73,10 +84,19 @@ async def main() -> None:
                 {"tenant_id": "acme", "run_id": run}
             ),
         )
+        events.append(event)
+    assessments = await assess_demo_feedback(events, scope, verifier)
+    for event, assessment in zip(events, assessments, strict=True):
         extracted = extractor.extract(event, scope=scope)
         if extracted.signal is None:
             raise RuntimeError(f"Feedback could not be learned: {extracted.reason}")
-        signals.append(extracted.signal)
+        evidence = extracted.signal.evidence.model_copy(
+            update={
+                "assessment_id": assessment.assessment_id,
+                "assessment_version": assessment.version,
+            }
+        )
+        signals.append(extracted.signal.model_copy(update={"evidence": evidence}))
     candidate = (await engine.process(signals)).artifacts[0]
     await engine.request_review(scope, candidate.artifact_id)
     await engine.review(scope, candidate.artifact_id, reviewer="lead", approved=True)

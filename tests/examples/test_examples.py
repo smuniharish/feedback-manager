@@ -42,7 +42,7 @@ SELF_CONTAINED = {
 def test_example_runs(script: str, expected: str) -> None:
     if script.startswith("10_"):
         pytest.importorskip("psycopg", reason="needs the examples dependency group")
-    if script.startswith(("15_", "16_")):
+    if script.startswith("16_"):
         pytest.importorskip("lancedb")
         pytest.importorskip("ladybug")
     environment = {
@@ -65,6 +65,30 @@ def test_example_runs(script: str, expected: str) -> None:
 
     assert completed.returncode == 0, completed.stdout + completed.stderr
     assert expected in completed.stdout
+
+
+def test_local_bge_m3_example_runs_with_a_local_checkpoint() -> None:
+    model_path = ROOT / "models" / "bge-m3"
+    if not (model_path / "config.json").is_file():
+        pytest.skip("local BGE-M3 checkpoint is not present")
+    pytest.importorskip("FlagEmbedding", reason="needs the models dependency group")
+    completed = subprocess.run(  # noqa: S603
+        [sys.executable, *STRICT_WARNINGS, str(EXAMPLES / "17_local_bge_m3.py")],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        timeout=900,
+        check=False,
+        cwd=ROOT,
+        env={
+            key: value
+            for key, value in os.environ.items()
+            if key not in ("FEEDBACK_MANAGER_POSTGRES_DSN", "FEEDBACK_MANAGER_STATE_DIR")
+        },
+    )
+
+    assert completed.returncode == 0, completed.stdout + completed.stderr
+    assert "Retrieved with local BGE-M3:" in completed.stdout
 
 
 def test_streamlit_app_submits_and_reviews_feedback() -> None:

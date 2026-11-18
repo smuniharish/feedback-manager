@@ -36,8 +36,9 @@ from itertools import count
 from typing import TYPE_CHECKING, Any
 
 from feedback_manager import ExecutionContext, FeedbackManager, FeedbackTarget, FeedbackTargetType
-from feedback_manager.learning import ArtifactScope
+from feedback_manager.learning import ArtifactScope, ContextScopeResolver, ExecutionOutcome
 from feedback_manager.learning.engine import LearningEngine
+from feedback_manager.learning.signals import LearningSignalExtractor
 from feedback_manager.observability import NoOpObservabilitySink
 from feedback_manager.retrieval import RetrievalRequest
 from feedback_manager.storage.artifacts import ArtifactQuery, InMemoryArtifactRepository
@@ -94,6 +95,7 @@ def _manager(*, learning_engine: LearningEngine | None = None) -> FeedbackManage
     return FeedbackManager(
         observability_sink=NoOpObservabilitySink(),
         learning_engine=learning_engine,
+        learning_scope_resolver=ContextScopeResolver(namespace=SCOPE.namespace),
         learning=learning_engine is not None,
     )
 
@@ -150,19 +152,23 @@ async def lifecycle_overhead(runs: int, warmup: int) -> Result:
 
 
 async def _learn(lessons: int) -> tuple[InMemoryArtifactRepository, LearningEngine]:
-    """Build ``lessons`` reviewed, active lessons through the public workflow."""
+    """Build reviewed lessons from synthetic outcomes through the public workflow."""
     repository = InMemoryArtifactRepository()
     engine = LearningEngine(repository)
-    manager = _manager(learning_engine=engine)
-    try:
-        numbers = count()
-        for lesson in range(lessons):
-            for _ in range(2):
-                await _submit(manager, next(numbers), f"Verify field {lesson} before acting.")
-        assert manager.background_learner is not None
-        await manager.background_learner.drain()
-    finally:
-        await manager.aclose()
+    extractor = LearningSignalExtractor()
+    for lesson in range(lessons):
+        signals = [
+            extractor.extract_outcome(
+                ExecutionOutcome(
+                    execution_id=f"run-{lesson}-{run}",
+                    scope=SCOPE,
+                    success=True,
+                    description=f"Verify field {lesson} before acting.",
+                )
+            )
+            for run in range(2)
+        ]
+        await engine.process(signals)
     page = await repository.query(ArtifactQuery(scope=SCOPE, limit=lessons))
     for artifact in page.artifacts:
         await engine.request_review(SCOPE, artifact.artifact_id)
@@ -180,26 +186,29 @@ async def _retrieve(retriever: LearnedArtifactRetriever, request: RetrievalReque
 async def retrieval_overhead(runs: int, warmup: int, lessons: int) -> list[Result]:
     """Time structured retrieval and, with LanceDB installed, hybrid retrieval."""
     repository, engine = await _learn(lessons)
-    request = RetrievalRequest(scope=SCOPE, agent_id=AGENT, task="verify field 7")
-    results = [
-        await _traced("retrieve:structured", lambda: _retrieve(engine, request), runs, warmup)
-    ]
-    if importlib.util.find_spec("lancedb") is None:
+    try:
+        request = RetrievalRequest(scope=SCOPE, agent_id=AGENT, task="verify field 7")
+        results = [
+            await _traced("retrieve:structured", lambda: _retrieve(engine, request), runs, warmup)
+        ]
+        if importlib.util.find_spec("lancedb") is None:
+            return results
+
+        from feedback_manager.embeddings import HashingEmbeddingProvider
+        from feedback_manager.retrieval import ArtifactIndexer, HybridRetriever
+        from feedback_manager.storage.vector.lancedb import LanceDBVectorStore
+
+        with tempfile.TemporaryDirectory() as directory:
+            vectors = await LanceDBVectorStore.open(directory)
+            provider = HashingEmbeddingProvider()
+            await ArtifactIndexer(repository, vectors, provider).reindex(SCOPE)
+            hybrid = HybridRetriever(repository, vectors, provider)
+            results.append(
+                await _traced("retrieve:hybrid", lambda: _retrieve(hybrid, request), runs, warmup)
+            )
         return results
-
-    from feedback_manager.embeddings import HashingEmbeddingProvider
-    from feedback_manager.retrieval import ArtifactIndexer, HybridRetriever
-    from feedback_manager.storage.vector.lancedb import LanceDBVectorStore
-
-    with tempfile.TemporaryDirectory() as directory:
-        vectors = await LanceDBVectorStore.open(directory)
-        provider = HashingEmbeddingProvider()
-        await ArtifactIndexer(repository, vectors, provider).reindex(SCOPE)
-        hybrid = HybridRetriever(repository, vectors, provider)
-        results.append(
-            await _traced("retrieve:hybrid", lambda: _retrieve(hybrid, request), runs, warmup)
-        )
-    return results
+    finally:
+        await engine.aclose()
 
 
 def _table(results: Sequence[Result]) -> str:

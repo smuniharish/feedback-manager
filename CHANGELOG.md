@@ -5,6 +5,70 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0] - 2026-11-18
+
+### Documentation
+
+- Architecture diagrams were rewritten as conceptual flows. Internal sequencing,
+  retry and recovery steps, and observability events were removed; the public
+  component responsibilities and integration boundaries were kept.
+- Background-learning operations guidance no longer publishes stress-harness
+  throughput measurements. Operational guidance (lease sizing, fencing, topology
+  considerations) is unchanged.
+- Installation, deployment, and skill references were updated to 0.2.x.
+
+### Added
+
+- `feedback-manager[postgres]` extra with `PostgresExperienceRepository`,
+  `PostgresAssessmentRepository` and `PostgresPayloadStore` in
+  `feedback_manager.storage.postgres`, for multi-process deployments. They accept
+  a caller-owned psycopg pool and are certified by the contract kits.
+- `examples/postgres_learning_job_store.py`, a runnable example of the PostgreSQL
+  learning job store, with tests in `tests/examples/test_learning_jobs.py`.
+- `SQLitePayloadStore`, a durable single-host payload archive.
+- `ExperiencePurger` (`feedback_manager.storage.purge`) deletes an experience,
+  its assessments, decisions and payloads after invalidating the related
+  learning evidence. An interrupted purge can be run again to finish it.
+- `AssessmentRepositoryABC.decision_changes`, a commit-ordered decision feed, and
+  `BackgroundLearner.recover_assessments`, which replays accepted decisions whose
+  job was lost in a crash.
+- `AssessmentRepositoryABC.for_experience`, `delete_for_experience` and
+  `ExperienceRepositoryABC.delete`.
+- `LearningEngine.synthesize` with `DeterministicSynthesizer` and
+  `ModelSynthesizer`: evidence-grounded synthesis of related patterns into review
+  candidates, never counting contradicting evidence as support.
+- `RetrievalLoomRetriever(graph_depth=...)` enables RetrievalLoom's graph channel.
+- `scripts/stress_learning.py`, a multi-process load and crash-recovery harness
+  for background learning on one host, plus multi-process projection tests.
+
+### Changed
+
+- Dependency pins: `agxai` is `>=1.0.3,<2` and `retrievalloom` is `>=0.2.0,<0.3`.
+  The `deepagents` example stays on `>=0.3.0,<0.3.1` because later releases
+  require `langchain-google-genai`, which conflicts with RetrievalLoom 0.2.0's
+  `tenacity` requirement.
+- `RetrievalLoomRetriever` raises `UnsupportedCapabilityError` for a nonzero
+  `RetrievalRequest.graph_depth` that its engine cannot honor, instead of
+  silently ignoring it.
+
+### Fixed
+
+- A worker whose lease expired mid-job no longer crashes `drain()` or
+  `run_once()`, or abandons the rest of a background batch, when completing the
+  job. The fenced completion is logged, counted in the new
+  `LearningWorkerStats.lease_lost` and dropped; the reclaiming worker redoes the
+  job idempotently.
+- An owned `RetrievalLoomRetriever` over a durable repository shared by several
+  processes no longer misses artifacts published by another process until it
+  restarts. It rebuilds a scope's projection after `projection_ttl`, which
+  defaults to 30 seconds; `None` disables this.
+
+### Deprecated
+
+- `ArtifactIndexer`, `VectorRetriever`, `GraphRetriever` and `HybridRetriever`
+  emit `DeprecationWarning`; migrate to `RetrievalLoomRetriever` using the table
+  in the RetrievalLoom guide.
+
 ## [0.1.2] - 2026-11-06
 
 feedback-manager collects, validates, stores, and routes feedback about AI
@@ -138,6 +202,8 @@ The first public release.
   provenance links.
 - Examples, tests, and documentation.
 
+[Unreleased]: https://github.com/smuniharish/feedback-manager/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/smuniharish/feedback-manager/compare/v0.1.2...v0.2.0
 [0.1.2]: https://github.com/smuniharish/feedback-manager/releases/tag/v0.1.2
 [0.1.1]: https://github.com/smuniharish/feedback-manager/releases/tag/v0.1.1
 [0.1.0]: https://pypi.org/project/feedback-manager/0.1.0/

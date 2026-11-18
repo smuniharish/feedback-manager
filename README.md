@@ -8,7 +8,7 @@
   <a href="https://github.com/smuniharish/feedback-manager/actions/workflows/ci.yml"><img src="https://github.com/smuniharish/feedback-manager/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
   <a href="https://feedback-manager.readthedocs.io/"><img src="https://readthedocs.org/projects/feedback-manager/badge/?version=latest" alt="Documentation"></a>
   <a href="https://pypi.org/project/feedback-manager/"><img src="https://img.shields.io/pypi/v/feedback-manager.svg" alt="PyPI"></a>
-  <a href="https://pypi.org/project/feedback-manager/"><img src="https://img.shields.io/badge/python-3.12%20%7C%203.13%20%7C%203.14%20%7C%203.15-blue.svg" alt="Python 3.12 | 3.13 | 3.14 | 3.15"></a>
+  <a href="https://pypi.org/project/feedback-manager/"><img src="https://img.shields.io/badge/python-3.12%20%7C%203.13%20%7C%203.14-blue.svg" alt="Python 3.12 | 3.13 | 3.14"></a>
   <img src="https://img.shields.io/badge/coverage-100%25-brightgreen.svg" alt="Coverage 100%">
   <img src="https://img.shields.io/badge/typing-typed-blue.svg" alt="Typed">
   <a href="https://github.com/smuniharish/feedback-manager/blob/master/LICENSE"><img src="https://img.shields.io/badge/license-Apache%202.0-blue.svg" alt="License: Apache 2.0"></a>
@@ -75,20 +75,22 @@ feedback about all of it.
   builds candidate lessons with evidence and confidence. Human review and
   explicit activation are separate from feedback approval, and original
   feedback is never rewritten.
-- **Hybrid retrieval.** Structured, vector (LanceDB), graph (LadybugDB) and
-  hybrid retrieval over learned artifacts. Vector and graph records are
-  rebuildable hints: every result is revalidated against the current artifact,
-  its review state and its scope.
+- **RetrievalLoom-backed learning.** The default learning engine uses
+  RetrievalLoom's offline indexes without a model download or external vector
+  database. Every hit is revalidated against the current artifact, its review
+  state and its authenticated scope.
 - **Isolated from failures.** A failing handler, subscriber, router or
   observability sink never loses stored feedback. Choose per stage whether a
   failure is logged or raised.
-- **Extensible through ABCs.** Subclass `FrameworkAdapter` for Agno, CrewAI or
-  your own loop, and `FeedbackStore`, `VectorStore`, `GraphStore` or
-  `EmbeddingProvider` for your infrastructure. Every agxai, LanceDB and
-  LadybugDB component can be injected, and `feedback_manager.testing` checks
-  your implementations against the contracts.
-- **Small and typed.** The core depends on agxai, Pydantic and structlog,
-  ships type hints, and is tested on Python 3.12 to 3.15 with 100% statement
+- **Extensible through native contracts.** Subclass `FrameworkAdapter` for
+  Agno, CrewAI or your own loop. Configure RetrievalLoom through its native
+  components and resources; agxai provenance components remain injectable.
+  Deprecated legacy vector and graph retrievers remain importable for existing
+  applications, and `feedback_manager.testing` checks supported implementations against
+  their contracts.
+- **Small and typed.** Runtime dependencies include agxai, Pydantic, RetrievalLoom
+  and structlog,
+  ships type hints, and is tested on Python 3.12 to 3.14 with 100% statement
   and branch coverage.
 
 ## Installation
@@ -103,13 +105,15 @@ Optional extras:
 | Extra | Adds |
 | --- | --- |
 | `langchain` | LangChain and LangGraph capture, human-in-the-loop bridge and learned-context injection |
-| `lancedb` | `LanceDBVectorStore` for vector and hybrid retrieval |
-| `ladybugdb` | `LadybugGraphStore` for graph and hybrid retrieval |
+| `lancedb` | Legacy `LanceDBVectorStore` compatibility adapter |
+| `ladybugdb` | Legacy `LadybugGraphStore` compatibility adapter |
 | `otel` | `OpenTelemetryObservabilitySink` |
+| `postgres` | PostgreSQL experience, assessment and payload stores for multi-process deployments |
 | `all` | Every extra above |
 
-The `lancedb` and `ladybugdb` extras need Python 3.14 or earlier until those
-databases publish Python 3.15 wheels.
+The local-model example is source-checkout only. Run `uv sync --group models`
+after placing BGE-M3 under the ignored `models/bge-m3` path; the large weights
+are not installed or shipped by the package.
 
 ## Quickstart
 
@@ -177,42 +181,12 @@ walks through it step by step.
 
 ### Learn from feedback
 
-Two corrections with the same lesson become a candidate. It reaches the agent
-only after a person reviews it and it is activated:
-
-```python
-from feedback_manager.learning import ArtifactScope
-from feedback_manager.learning.engine import LearningEngine
-from feedback_manager.learning.signals import LearningSignalExtractor
-from feedback_manager.retrieval import RetrievalRequest
-from feedback_manager.storage.artifacts import InMemoryArtifactRepository
-
-scope = ArtifactScope(tenant_id="example-tenant", agent_id="research-agent")
-engine = LearningEngine(InMemoryArtifactRepository())
-signals = [LearningSignalExtractor().extract(event, scope=scope).signal for event in corrections]
-
-candidate = (await engine.process(signals)).artifacts[0]
-await engine.request_review(scope, candidate.artifact_id)
-await engine.review(scope, candidate.artifact_id, reviewer="example-reviewer", approved=True)
-await engine.activate(scope, candidate.artifact_id)
-
-result = await engine.retrieve(
-    RetrievalRequest(scope=scope, agent_id="research-agent", task="validate results")
-)
-print(result.as_context())
-```
-
-Output:
-
-```text
-Improvement: Search, validate results, then execute.
-Search, validate results, then execute.
-```
-
-In production, `FeedbackManager` queues learning jobs for a background learner
-instead; see
+Feedback requires an independent assessment and a separate acceptance decision
+before it can produce a candidate. A person must then review and activate the
+candidate. See the [runnable example](examples/13_basic_learning.py), which
+simulates those separate decisions on synthetic data. For background jobs, see
 [background learning and recovery](https://feedback-manager.readthedocs.io/en/latest/how-to/background-learning/)
-and [hybrid retrieval](https://feedback-manager.readthedocs.io/en/latest/how-to/hybrid-retrieval/).
+and [RetrievalLoom-backed retrieval](https://feedback-manager.readthedocs.io/en/latest/how-to/hybrid-retrieval/).
 
 ### Your own framework
 
@@ -261,19 +235,11 @@ and [bring your own components](https://feedback-manager.readthedocs.io/en/lates
 
 ## Benchmarks
 
-Each operation timed 1,000 times with the default in-memory stores:
-
-| Scenario | p50 ms | p95 ms |
-| --- | ---: | ---: |
-| `submit`, learning off | 0.13 | 0.21 |
-| `submit`, learning on | 0.21 | 0.37 |
-| `lifecycle`: acknowledge, handle, resolve | 0.15 | 0.29 |
-| `retrieve`, structured, 50 lessons | 21.0 | 30.5 |
-| `retrieve`, hybrid with LanceDB, 50 lessons | 102.1 | 132.3 |
-
-Measured on one machine; see
+The published timing table is a historical baseline from before the current
+RetrievalLoom-backed search path. See
 [Benchmarks](https://feedback-manager.readthedocs.io/en/latest/benchmarks/) for
-the method, memory use and how to reproduce.
+its methodology and the command to reproduce measurements; do not treat the
+historical retrieval numbers as current adapter performance.
 
 ## Examples
 
@@ -285,7 +251,8 @@ each exercised by the test suite:
 - [Tool failure](https://feedback-manager.readthedocs.io/en/latest/examples/basics/#03-tool-failure)
 - [Provenance with agxai](https://feedback-manager.readthedocs.io/en/latest/examples/basics/#06-provenance)
 - [Custom agent](https://feedback-manager.readthedocs.io/en/latest/how-to/custom-agents/)
-- [Background learning with LanceDB and LadybugDB](https://feedback-manager.readthedocs.io/en/latest/how-to/background-learning/)
+- [Durable background learning with RetrievalLoom](https://feedback-manager.readthedocs.io/en/latest/how-to/background-learning/)
+- [Local BGE-M3 with RetrievalLoom](https://feedback-manager.readthedocs.io/en/latest/how-to/hybrid-retrieval/#optional-local-bge-m3-embeddings)
 - [PostgreSQL store](https://feedback-manager.readthedocs.io/en/latest/examples/production/#postgresql-store)
 
 ## Documentation

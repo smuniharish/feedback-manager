@@ -12,16 +12,19 @@ from feedback_manager.embeddings import (
     HashingEmbeddingProvider,
 )
 from feedback_manager.learning import InMemoryLearningJobStore, SQLiteLearningJobStore
-from feedback_manager.storage import InMemoryFeedbackStore
+from feedback_manager.storage import InMemoryFeedbackStore, InMemoryPayloadStore
 from feedback_manager.storage.artifacts import InMemoryArtifactRepository
 from feedback_manager.storage.graph import GraphCapabilities, InMemoryGraphStore
 from feedback_manager.storage.vector import InMemoryVectorStore
 from feedback_manager.testing import (
     ArtifactRepositoryContract,
+    AssessmentRepositoryContract,
     EmbeddingProviderContract,
+    ExperienceRepositoryContract,
     FeedbackStoreContract,
     GraphStoreContract,
     LearningJobStoreContract,
+    PayloadStoreContract,
     VectorStoreContract,
 )
 
@@ -35,7 +38,10 @@ if TYPE_CHECKING:
     from feedback_manager.embeddings import EmbeddingProvider
     from feedback_manager.learning import LearningJobStore
     from feedback_manager.storage.artifacts import ArtifactRepository
+    from feedback_manager.storage.assessment import AssessmentRepositoryABC
+    from feedback_manager.storage.experience import ExperienceRepositoryABC
     from feedback_manager.storage.graph import GraphStore
+    from feedback_manager.storage.payload import PayloadStoreABC
     from feedback_manager.storage.vector import VectorStore
 
 
@@ -50,6 +56,46 @@ class UsesTmpPath:
 class TestInMemoryFeedbackStore(FeedbackStoreContract):
     async def make_store(self) -> FeedbackStore:
         return InMemoryFeedbackStore()
+
+
+class TestInMemoryPayloadStore(PayloadStoreContract):
+    async def make_payload_store(self) -> PayloadStoreABC:
+        return InMemoryPayloadStore()
+
+
+class TestInMemoryExperienceRepository(ExperienceRepositoryContract):
+    async def make_experience_repository(self) -> ExperienceRepositoryABC:
+        from feedback_manager.storage.experience import InMemoryExperienceRepository
+
+        return InMemoryExperienceRepository()
+
+
+class TestInMemoryAssessmentRepository(AssessmentRepositoryContract):
+    async def make_assessment_repository(self) -> AssessmentRepositoryABC:
+        from feedback_manager.storage.assessment import InMemoryAssessmentRepository
+
+        return InMemoryAssessmentRepository()
+
+
+class TestSQLiteAssessmentRepository(UsesTmpPath, AssessmentRepositoryContract):
+    async def make_assessment_repository(self) -> AssessmentRepositoryABC:
+        from feedback_manager.storage.assessment import SQLiteAssessmentRepository
+
+        return await SQLiteAssessmentRepository.open(self.directory / "assessments.db")
+
+
+class TestSQLiteExperienceRepository(UsesTmpPath, ExperienceRepositoryContract):
+    async def make_experience_repository(self) -> ExperienceRepositoryABC:
+        from feedback_manager.storage.experience import SQLiteExperienceRepository
+
+        return await SQLiteExperienceRepository.open(self.directory / "experiences.db")
+
+
+class TestSQLitePayloadStore(UsesTmpPath, PayloadStoreContract):
+    async def make_payload_store(self) -> PayloadStoreABC:
+        from feedback_manager.storage import SQLitePayloadStore
+
+        return await SQLitePayloadStore.open(self.directory / "payloads.db")
 
 
 class TestSQLiteFeedbackStoreExample(UsesTmpPath, FeedbackStoreContract):

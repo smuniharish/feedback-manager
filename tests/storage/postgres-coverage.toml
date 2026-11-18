@@ -1,0 +1,14 @@
+# Coverage for the PostgreSQL stores, which the main coverage run omits because it
+# has no database. Used by the PostgreSQL CI job:
+#   uv run pytest -m postgres --cov=feedback_manager.storage.postgres \
+#       --cov-config=tests/storage/postgres-coverage.toml
+[tool.coverage.run]
+branch = true
+
+[tool.coverage.report]
+fail_under = 100
+show_missing = true
+exclude_also = [
+    "if TYPE_CHECKING:",
+    '^\s*\.\.\.$',
+]

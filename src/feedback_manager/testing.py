@@ -32,6 +32,7 @@ The agxai provenance store contract lives in ``agxai.testing``.
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import inspect
 import math
 from abc import ABC, abstractmethod
@@ -39,6 +40,12 @@ from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING, Any
 from uuid import UUID, uuid4
 
+from feedback_manager.assessment import (
+    AssessmentEvidence,
+    AssessmentStatus,
+    FeedbackAssessment,
+    LearningDecision,
+)
 from feedback_manager.contracts.store import FeedbackQuery, FeedbackStore
 from feedback_manager.core.events import FeedbackEvent
 from feedback_manager.core.status import FeedbackStatus
@@ -51,7 +58,12 @@ from feedback_manager.errors import (
     FeedbackNotFoundError,
     FeedbackStoreError,
 )
-from feedback_manager.learning.errors import ArtifactConflictError, ArtifactNotFoundError
+from feedback_manager.experience import ExecutionExperience
+from feedback_manager.learning.errors import (
+    ArtifactConflictError,
+    ArtifactNotFoundError,
+    LearningValidationError,
+)
 from feedback_manager.learning.jobs import (
     LearningJob,
     LearningJobNotFoundError,
@@ -67,12 +79,28 @@ from feedback_manager.learning.models import (
     TenantScope,
 )
 from feedback_manager.storage.artifacts.base import ArtifactQuery, ArtifactRepository
+from feedback_manager.storage.assessment import (
+    AssessmentConflictError,
+    AssessmentNotFoundError,
+    AssessmentRepositoryABC,
+)
+from feedback_manager.storage.experience import (
+    ExperienceConflictError,
+    ExperienceNotFoundError,
+    ExperienceRepositoryABC,
+)
 from feedback_manager.storage.graph.base import (
     GraphCapabilities,
     GraphDirection,
     GraphNode,
     GraphRelationship,
     GraphStore,
+)
+from feedback_manager.storage.payload import (
+    PayloadConflictError,
+    PayloadNotFoundError,
+    PayloadScope,
+    PayloadStoreABC,
 )
 from feedback_manager.storage.vector.base import (
     VectorCapabilities,
@@ -85,10 +113,13 @@ if TYPE_CHECKING:
 
 __all__ = [
     "ArtifactRepositoryContract",
+    "AssessmentRepositoryContract",
     "EmbeddingProviderContract",
+    "ExperienceRepositoryContract",
     "FeedbackStoreContract",
     "GraphStoreContract",
     "LearningJobStoreContract",
+    "PayloadStoreContract",
     "VectorStoreContract",
 ]
 
@@ -472,6 +503,658 @@ class ArtifactRepositoryContract(_Contract[ArtifactRepository]):
                 ArtifactQuery(scope=_SCOPE, artifact_types=(ArtifactType.KNOWLEDGE,))
             )
             _check(other_type.artifacts == (), "the type filter matched another type")
+
+        self._run(scenario)
+
+
+class PayloadStoreContract(_Contract[PayloadStoreABC]):
+    """Tests the scoped payload storage contract."""
+
+    @abstractmethod
+    async def make_payload_store(self) -> PayloadStoreABC:
+        """Return a new, empty, ready-to-use store."""
+
+    async def _make(self) -> PayloadStoreABC:
+        return await self.make_payload_store()
+
+    def test_round_trip_metadata_and_deletion(self) -> None:
+        """Payload bytes, metadata and deletion round-trip."""
+
+        async def scenario(store: PayloadStoreABC) -> None:
+            scope = PayloadScope(tenant_id="tenant", namespace="app", agent_id="agent")
+            data = b'{"value":[1,2]}'
+            record = await store.write(
+                scope, data, content_type="application/json", serialization_version="1"
+            )
+            _check(record.scope == scope, "write returned the wrong scope")
+            _check(record.digest == hashlib.sha256(data).hexdigest(), "wrong payload digest")
+            _check(record.size == len(data), "wrong payload size")
+            _check(record.content_type == "application/json", "wrong content type")
+            _check(record.serialization_version == "1", "wrong serialization version")
+            _check(await store.read(scope, record.payload_id) == data, "payload did not round-trip")
+            _check(await store.metadata(scope, record.payload_id) == record, "metadata changed")
+            _check(
+                await store.delete(scope, record.payload_id), "delete did not remove the payload"
+            )
+            _check(
+                not await store.delete(scope, record.payload_id), "repeated delete must be false"
+            )
+            await _raises(
+                PayloadNotFoundError,
+                store.read(scope, record.payload_id),
+                "reading a deleted payload must raise PayloadNotFoundError",
+            )
+            await store.health()
+
+        self._run(scenario)
+
+    def test_identical_retries_and_conflicting_reuse(self) -> None:
+        """Identical writes are idempotent and conflicting ID reuse is rejected."""
+
+        async def scenario(store: PayloadStoreABC) -> None:
+            scope = PayloadScope(tenant_id="tenant", namespace="app", agent_id="agent")
+            payload_id = uuid4()
+            results = await asyncio.gather(
+                *(
+                    store.write(
+                        scope,
+                        b"content",
+                        content_type="text/plain",
+                        serialization_version="1",
+                        payload_id=payload_id,
+                    )
+                    for _ in range(5)
+                )
+            )
+            _check(all(result == results[0] for result in results), "retries were not idempotent")
+            await _raises(
+                PayloadConflictError,
+                store.write(
+                    scope,
+                    b"different",
+                    content_type="text/plain",
+                    serialization_version="1",
+                    payload_id=payload_id,
+                ),
+                "different bytes with the same ID must conflict",
+            )
+            await _raises(
+                PayloadConflictError,
+                store.write(
+                    scope,
+                    b"content",
+                    content_type="application/json",
+                    serialization_version="1",
+                    payload_id=payload_id,
+                ),
+                "different metadata with the same ID must conflict",
+            )
+
+        self._run(scenario)
+
+    def test_tenants_namespaces_and_agents_are_isolated(self) -> None:
+        """A payload cannot be read, inspected or deleted from another scope."""
+
+        async def scenario(store: PayloadStoreABC) -> None:
+            scope = PayloadScope(tenant_id="tenant", namespace="app", agent_id="agent")
+            record = await store.write(
+                scope, b"private", content_type="text/plain", serialization_version="1"
+            )
+            for other in (
+                PayloadScope(tenant_id="other", namespace="app", agent_id="agent"),
+                PayloadScope(tenant_id="tenant", namespace="other", agent_id="agent"),
+                PayloadScope(tenant_id="tenant", namespace="app", agent_id="other"),
+            ):
+                await _raises(
+                    PayloadNotFoundError,
+                    store.read(other, record.payload_id),
+                    "read must not cross payload scopes",
+                )
+                await _raises(
+                    PayloadNotFoundError,
+                    store.metadata(other, record.payload_id),
+                    "metadata must not cross payload scopes",
+                )
+                _check(not await store.delete(other, record.payload_id), "delete crossed scopes")
+            _check(await store.read(scope, record.payload_id) == b"private", "payload was deleted")
+
+        self._run(scenario)
+
+
+class AssessmentRepositoryContract(_Contract[AssessmentRepositoryABC]):
+    """Tests the scoped, versioned assessment archive contract."""
+
+    @abstractmethod
+    async def make_assessment_repository(self) -> AssessmentRepositoryABC:
+        """Return a new, empty, ready-to-use repository."""
+
+    async def _make(self) -> AssessmentRepositoryABC:
+        return await self.make_assessment_repository()
+
+    def test_explicit_decisions_are_version_bound(self) -> None:
+        """Only supported assessments can be accepted and decisions survive reassessment."""
+
+        async def scenario(repository: AssessmentRepositoryABC) -> None:
+            scope = PayloadScope(tenant_id="tenant", namespace="app", agent_id="agent")
+            assessment = FeedbackAssessment(
+                scope=scope,
+                feedback_id=uuid4(),
+                feedback_digest="a" * 64,
+                experience_id=uuid4(),
+                experience_version=1,
+                experience_digest="b" * 64,
+                status=AssessmentStatus.REVIEW_REQUIRED,
+                method="contract",
+                reviewer="critic",
+                assessed_at=_EPOCH,
+                supporting_evidence=(
+                    AssessmentEvidence(
+                        evidence_id="independent",
+                        scope=scope,
+                        experience_id=uuid4(),
+                        experience_version=1,
+                    ),
+                ),
+            )
+            await repository.create(assessment)
+            decision = LearningDecision(
+                scope=scope,
+                assessment_id=assessment.assessment_id,
+                assessment_version=1,
+                accepted=True,
+                reviewer="host-reviewer",
+                decided_at=_EPOCH + timedelta(seconds=1),
+            )
+            await _raises(
+                AssessmentNotFoundError,
+                repository.decide(decision.model_copy(update={"assessment_id": uuid4()})),
+                "unknown assessment decisions must fail",
+            )
+            _check(
+                await repository.decision(scope, assessment.assessment_id, assessment_version=1)
+                is None,
+                "undecided assessment must not have a decision",
+            )
+            await _raises(
+                AssessmentConflictError,
+                repository.decide(decision),
+                "review-required assessments must not be accepted",
+            )
+            rejected = decision.model_copy(update={"accepted": False})
+            _check(await repository.decide(rejected) == rejected, "rejection changed")
+            _check(await repository.decide(rejected) == rejected, "decision retry changed")
+            await _raises(
+                AssessmentConflictError,
+                repository.decide(rejected.model_copy(update={"reviewer": "other"})),
+                "conflicting decisions must fail",
+            )
+            supported = assessment.model_copy(
+                update={
+                    "version": 2,
+                    "status": AssessmentStatus.SUPPORTED,
+                    "assessed_at": _EPOCH + timedelta(seconds=2),
+                }
+            )
+            await repository.update(supported, expected_version=1)
+            await _raises(
+                AssessmentConflictError,
+                repository.decide(rejected),
+                "stale decisions cannot be accepted",
+            )
+            await _raises(
+                AssessmentConflictError,
+                repository.decide(
+                    decision.model_copy(
+                        update={
+                            "assessment_version": 2,
+                            "decided_at": _EPOCH + timedelta(seconds=3),
+                        }
+                    )
+                ),
+                "decision IDs cannot be reused",
+            )
+            accepted = decision.model_copy(
+                update={
+                    "decision_id": uuid4(),
+                    "assessment_version": 2,
+                    "decided_at": _EPOCH + timedelta(seconds=3),
+                }
+            )
+            _check(await repository.decide(accepted) == accepted, "acceptance changed")
+            _check(
+                await repository.decision(scope, assessment.assessment_id, assessment_version=1)
+                == rejected,
+                "historical decision changed",
+            )
+            _check(
+                await repository.decision(scope, assessment.assessment_id, assessment_version=2)
+                == accepted,
+                "current decision changed",
+            )
+            other = PayloadScope(tenant_id="other", namespace="app", agent_id="agent")
+            await _raises(
+                AssessmentNotFoundError,
+                repository.decision(other, assessment.assessment_id, assessment_version=2),
+                "decisions must be scoped",
+            )
+
+        self._run(scenario)
+
+    def test_assessment_history_and_scope(self) -> None:
+        """Version history is immutable, bounded, and scoped."""
+
+        async def scenario(repository: AssessmentRepositoryABC) -> None:
+            scope = PayloadScope(tenant_id="tenant", namespace="app", agent_id="agent")
+            assessment = FeedbackAssessment(
+                scope=scope,
+                feedback_id=uuid4(),
+                feedback_digest="a" * 64,
+                experience_id=uuid4(),
+                experience_version=1,
+                experience_digest="b" * 64,
+                status=AssessmentStatus.REVIEW_REQUIRED,
+                method="contract",
+                reviewer="contract-reviewer",
+                assessed_at=_EPOCH,
+            )
+            _check(await repository.create(assessment) == assessment, "create changed assessment")
+            await _raises(
+                AssessmentConflictError,
+                repository.create(
+                    assessment.model_copy(update={"assessment_id": uuid4(), "version": 2})
+                ),
+                "new assessments must start at version one",
+            )
+            await _raises(
+                AssessmentConflictError,
+                repository.create(assessment.model_copy(update={"reviewer": "other"})),
+                "conflicting create must fail",
+            )
+            updated = assessment.model_copy(
+                update={
+                    "version": 2,
+                    "assessed_at": _EPOCH + timedelta(seconds=1),
+                    "status": AssessmentStatus.SUPPORTED,
+                }
+            )
+            _check(
+                await repository.update(updated, expected_version=1) == updated,
+                "update changed assessment",
+            )
+            _check(
+                await repository.create(assessment) == updated,
+                "create retry did not return current assessment",
+            )
+            _check(
+                await repository.get(scope, assessment.assessment_id, version=1) == assessment,
+                "first version changed",
+            )
+            _check(
+                tuple(await repository.versions(scope, assessment.assessment_id, limit=1))
+                == (assessment,),
+                "first history page changed",
+            )
+            _check(
+                tuple(
+                    await repository.versions(
+                        scope, assessment.assessment_id, after_version=1, limit=1
+                    )
+                )
+                == (updated,),
+                "second history page changed",
+            )
+            await _raises(
+                AssessmentConflictError,
+                repository.update(updated, expected_version=1),
+                "stale updates must fail",
+            )
+            for other in (
+                PayloadScope(tenant_id="other", namespace="app", agent_id="agent"),
+                PayloadScope(tenant_id="tenant", namespace="other", agent_id="agent"),
+                PayloadScope(tenant_id="tenant", namespace="app", agent_id="other"),
+            ):
+                await _raises(
+                    AssessmentNotFoundError,
+                    repository.get(other, assessment.assessment_id),
+                    "assessment reads must not cross scopes",
+                )
+                _check(
+                    not (await repository.for_feedback(other, assessment.feedback_id)).assessments,
+                    "assessment query crossed scopes",
+                )
+            await repository.health()
+
+        self._run(scenario)
+
+    def test_assessment_feedback_pagination(self) -> None:
+        """Pages contain only assessments for the requested feedback."""
+
+        async def scenario(repository: AssessmentRepositoryABC) -> None:
+            scope = PayloadScope(tenant_id="tenant", namespace="app", agent_id="agent")
+            first = FeedbackAssessment(
+                scope=scope,
+                feedback_id=uuid4(),
+                feedback_digest="a" * 64,
+                experience_id=uuid4(),
+                experience_version=1,
+                experience_digest="b" * 64,
+                status=AssessmentStatus.REVIEW_REQUIRED,
+                method="contract",
+                reviewer="reviewer",
+            )
+            second = first.model_copy(update={"assessment_id": uuid4()})
+            unrelated = first.model_copy(update={"assessment_id": uuid4(), "feedback_id": uuid4()})
+            for item in (first, unrelated, second):
+                await repository.create(item)
+            page = await repository.for_feedback(scope, first.feedback_id, limit=1)
+            _check(page.assessments == (first,), "first assessment page changed")
+            _check(page.next_cursor is not None, "first assessment page has no cursor")
+            page = await repository.for_feedback(
+                scope, first.feedback_id, limit=1, cursor=page.next_cursor
+            )
+            _check(page.assessments == (second,), "second assessment page changed")
+            _check(page.next_cursor is None, "final assessment page has a cursor")
+            _check(
+                not (
+                    await repository.for_feedback(
+                        scope, first.feedback_id, cursor=second.assessment_id
+                    )
+                ).assessments,
+                "cursor after final assessment must produce an empty page",
+            )
+            await _raises(
+                LearningValidationError,
+                repository.for_feedback(scope, first.feedback_id, cursor=unrelated.assessment_id),
+                "cursor must belong to the requested feedback",
+            )
+            await _raises(
+                LearningValidationError,
+                repository.for_feedback(scope, first.feedback_id, cursor="invalid"),  # type: ignore[arg-type]
+                "assessment cursor must be a UUID",
+            )
+
+        self._run(scenario)
+
+    def test_decision_feed_and_experience_deletion(self) -> None:
+        """Decisions form an ordered feed; deleting an experience is scoped and complete."""
+
+        async def scenario(repository: AssessmentRepositoryABC) -> None:
+            scope = PayloadScope(tenant_id="tenant", namespace="app", agent_id="agent")
+            other = PayloadScope(tenant_id="other", namespace="app", agent_id="agent")
+            experience_id = uuid4()
+
+            def assessment(target: PayloadScope, experience: UUID) -> FeedbackAssessment:
+                return FeedbackAssessment(
+                    scope=target,
+                    feedback_id=uuid4(),
+                    feedback_digest="a" * 64,
+                    experience_id=experience,
+                    experience_version=1,
+                    experience_digest="b" * 64,
+                    status=AssessmentStatus.SUPPORTED,
+                    method="contract",
+                    reviewer="critic",
+                    assessed_at=_EPOCH,
+                    supporting_evidence=(
+                        AssessmentEvidence(
+                            evidence_id="independent",
+                            scope=target,
+                            experience_id=uuid4(),
+                            experience_version=1,
+                        ),
+                    ),
+                )
+
+            items = (
+                assessment(scope, experience_id),
+                assessment(scope, uuid4()),
+                assessment(other, experience_id),
+            )
+            decisions = []
+            for index, item in enumerate(items):
+                await repository.create(item)
+                decisions.append(
+                    await repository.decide(
+                        LearningDecision(
+                            scope=item.scope,
+                            assessment_id=item.assessment_id,
+                            assessment_version=1,
+                            accepted=index != 1,
+                            reviewer="host-reviewer",
+                            decided_at=_EPOCH + timedelta(seconds=1),
+                        )
+                    )
+                )
+            first = await repository.decision_changes(limit=2)
+            _check(
+                [(change.feedback_id, change.decision) for change in first.changes]
+                == [
+                    (item.feedback_id, decision)
+                    for item, decision in zip(items[:2], decisions[:2], strict=True)
+                ],
+                "first decision feed page changed",
+            )
+            _check(first.has_more and first.cursor is not None, "first feed page is incomplete")
+            second = await repository.decision_changes(after=first.cursor, limit=2)
+            _check(
+                [change.decision for change in second.changes] == decisions[2:],
+                "second decision feed page changed",
+            )
+            _check(not second.has_more, "final feed page has more")
+            end = await repository.decision_changes(after=second.cursor)
+            _check(
+                not end.changes and end.cursor == second.cursor and not end.has_more,
+                "empty feed page must keep its cursor",
+            )
+            await _raises(
+                LearningValidationError,
+                repository.decision_changes(after="not-a-cursor"),
+                "invalid feed cursors must fail",
+            )
+            page = await repository.for_experience(scope, experience_id, limit=1)
+            _check(
+                page.assessments == (items[0],) and page.next_cursor is None,
+                "experience assessment page changed",
+            )
+            await _raises(
+                LearningValidationError,
+                repository.for_experience(scope, experience_id, cursor=items[1].assessment_id),
+                "cursor must belong to the requested experience",
+            )
+            deleted = await repository.delete_for_experience(scope, experience_id)
+            _check(
+                deleted.assessments == (items[0],) and deleted.decisions == (decisions[0],),
+                "deletion did not report the experience's records",
+            )
+            await _raises(
+                AssessmentNotFoundError,
+                repository.get(scope, items[0].assessment_id),
+                "deleted assessments must not be readable",
+            )
+            _check(
+                [change.decision for change in (await repository.decision_changes()).changes]
+                == decisions[1:],
+                "deleted decisions must leave the feed",
+            )
+            _check(
+                await repository.get(other, items[2].assessment_id) == items[2],
+                "deletion crossed scopes",
+            )
+            _check(
+                not (await repository.for_experience(scope, experience_id)).assessments,
+                "deleted assessments must leave experience pages",
+            )
+            repeated = await repository.delete_for_experience(scope, experience_id)
+            _check(
+                not repeated.assessments and not repeated.decisions,
+                "repeated deletion must be a no-op",
+            )
+
+        self._run(scenario)
+
+
+class ExperienceRepositoryContract(_Contract[ExperienceRepositoryABC]):
+    """Tests the scoped, versioned experience archive contract."""
+
+    @abstractmethod
+    async def make_experience_repository(self) -> ExperienceRepositoryABC:
+        """Return a new, empty, ready-to-use repository."""
+
+    async def _make(self) -> ExperienceRepositoryABC:
+        return await self.make_experience_repository()
+
+    def test_create_update_and_version_history(self) -> None:
+        """Create retries are idempotent and updates preserve prior versions."""
+
+        async def scenario(repository: ExperienceRepositoryABC) -> None:
+            scope = PayloadScope(tenant_id="tenant", namespace="app", agent_id="agent")
+            experience = ExecutionExperience(
+                scope=scope, execution_id="run", created_at=_EPOCH, updated_at=_EPOCH
+            )
+            _check(await repository.create(experience) == experience, "create changed experience")
+            await _raises(
+                ExperienceConflictError,
+                repository.create(experience.model_copy(update={"status": "different"})),
+                "conflicting create must fail",
+            )
+            await _raises(
+                ExperienceConflictError,
+                repository.create(
+                    experience.model_copy(update={"experience_id": uuid4(), "version": 2})
+                ),
+                "new experiences must start at version one",
+            )
+            updated = experience.model_copy(
+                update={
+                    "version": 2,
+                    "updated_at": _EPOCH + timedelta(seconds=1),
+                    "status": "completed",
+                }
+            )
+            _check(
+                await repository.update(updated, expected_version=1) == updated,
+                "update changed experience",
+            )
+            _check(
+                await repository.create(experience) == updated,
+                "identical create retry did not return the current version",
+            )
+            _check(
+                await repository.get(scope, experience.experience_id, version=1) == experience,
+                "the first version changed",
+            )
+            _check(
+                await repository.get(scope, experience.experience_id) == updated,
+                "get did not return the current version",
+            )
+            _check(
+                tuple(await repository.versions(scope, experience.experience_id))
+                == (experience, updated),
+                "version history changed",
+            )
+            _check(
+                tuple(await repository.versions(scope, experience.experience_id, limit=1))
+                == (experience,),
+                "first history page changed",
+            )
+            _check(
+                tuple(
+                    await repository.versions(
+                        scope, experience.experience_id, after_version=1, limit=1
+                    )
+                )
+                == (updated,),
+                "second history page changed",
+            )
+            await _raises(
+                ExperienceConflictError,
+                repository.update(updated, expected_version=1),
+                "stale updates must conflict",
+            )
+            await repository.health()
+
+        self._run(scenario)
+
+    def test_scoped_reads_and_pagination(self) -> None:
+        """Different tenants, namespaces and agents are isolated."""
+
+        async def scenario(repository: ExperienceRepositoryABC) -> None:
+            scope = PayloadScope(tenant_id="tenant", namespace="app", agent_id="agent")
+            first = await repository.create(ExecutionExperience(scope=scope, execution_id="one"))
+            second = await repository.create(ExecutionExperience(scope=scope, execution_id="two"))
+            page = await repository.query(scope, limit=1)
+            _check(page.experiences == (first,), "first page changed")
+            _check(page.next_cursor is not None, "first page has no cursor")
+            next_page = await repository.query(scope, limit=1, cursor=page.next_cursor)
+            _check(next_page.experiences == (second,), "second page changed")
+            _check(next_page.next_cursor is None, "final page has a cursor")
+            await _raises(
+                LearningValidationError,
+                repository.query(scope, cursor=uuid4()),
+                "unknown cursors must fail",
+            )
+            await _raises(
+                LearningValidationError,
+                repository.query(scope, cursor="invalid"),  # type: ignore[arg-type]
+                "non-UUID cursors must fail",
+            )
+            for other in (
+                PayloadScope(tenant_id="other", namespace="app", agent_id="agent"),
+                PayloadScope(tenant_id="tenant", namespace="other", agent_id="agent"),
+                PayloadScope(tenant_id="tenant", namespace="app", agent_id="other"),
+            ):
+                await _raises(
+                    ExperienceNotFoundError,
+                    repository.get(other, first.experience_id),
+                    "get must not cross experience scopes",
+                )
+                _check(not (await repository.query(other)).experiences, "query crossed scopes")
+                await _raises(
+                    ExperienceNotFoundError,
+                    repository.versions(other, first.experience_id),
+                    "version history must not cross experience scopes",
+                )
+
+        self._run(scenario)
+
+    def test_delete_removes_every_version_within_scope(self) -> None:
+        """Deletion removes history, is idempotent, and cannot cross scopes."""
+
+        async def scenario(repository: ExperienceRepositoryABC) -> None:
+            scope = PayloadScope(tenant_id="tenant", namespace="app", agent_id="agent")
+            experience = ExecutionExperience(
+                scope=scope, execution_id="run", created_at=_EPOCH, updated_at=_EPOCH
+            )
+            await repository.create(experience)
+            await repository.update(
+                experience.model_copy(
+                    update={"version": 2, "updated_at": _EPOCH + timedelta(seconds=1)}
+                ),
+                expected_version=1,
+            )
+            kept = await repository.create(ExecutionExperience(scope=scope, execution_id="kept"))
+            other = PayloadScope(tenant_id="other", namespace="app", agent_id="agent")
+            _check(
+                not await repository.delete(other, experience.experience_id),
+                "delete crossed experience scopes",
+            )
+            _check(await repository.delete(scope, experience.experience_id), "delete missed")
+            _check(
+                not await repository.delete(scope, experience.experience_id),
+                "repeated delete must report a missing experience",
+            )
+            for version in (None, 1):
+                await _raises(
+                    ExperienceNotFoundError,
+                    repository.get(scope, experience.experience_id, version=version),
+                    "deleted experience versions must not be readable",
+                )
+            _check(
+                (await repository.query(scope)).experiences == (kept,),
+                "delete removed another experience",
+            )
+            recreated = await repository.create(experience)
+            _check(recreated == experience, "a deleted experience ID could not be reused")
 
         self._run(scenario)
 

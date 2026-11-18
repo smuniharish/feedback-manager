@@ -3,7 +3,7 @@ services:
     build:
       context: ..
       dockerfile: deploy/Containerfile
-    image: localhost/feedback-manager-learning:0.1.2
+    image: localhost/feedback-manager-learning:0.2.0
     read_only: true
     cap_drop: [ALL]
     security_opt: [no-new-privileges:true]

@@ -4,6 +4,8 @@ Learning is enabled by default with ephemeral stores. Use `learning=False` for
 feedback-only operation, or configure `learning_engine`, `learning_job_store`,
 `learning_scope_resolver` and optionally `learning_change_source`. Set
 `require_durable_learning=True` to reject a missing durability capability.
+Feedback is quarantined from learning until an independent assessment is
+accepted and enqueued; a trusted namespace and agent must also be supplied.
 See [automatic learning and recovery](../how-to/background-learning.md) for the
 complete startup/shutdown and provider configuration.
 

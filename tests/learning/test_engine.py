@@ -1,6 +1,6 @@
 import asyncio
 from datetime import timedelta
-from unittest.mock import patch
+from unittest.mock import create_autospec, patch
 from uuid import uuid4
 
 import pytest
@@ -17,13 +17,28 @@ from feedback_manager.learning import (
     TenantScope,
     ValidationRecord,
 )
-from feedback_manager.learning.engine import LearningEngine
+from feedback_manager.learning.assessment_verification import (
+    AssessmentVerification,
+    AssessmentVerifier,
+)
+from feedback_manager.learning.engine import LearningEngine as BaseLearningEngine
 from feedback_manager.learning.validation import (
     DefaultLearningValidationPolicy,
     LearningValidationConfig,
 )
 from feedback_manager.retrieval import RetrievalRequest
 from feedback_manager.storage.artifacts import ArtifactPage, InMemoryArtifactRepository
+
+
+class LearningEngine(BaseLearningEngine):
+    """Isolate lifecycle unit tests from the separately tested assessment verifier."""
+
+    def __init__(self, repository, **kwargs):
+        verifier = create_autospec(AssessmentVerifier, instance=True)
+        accepted = AssessmentVerification(eligible=True, reason="test-double")
+        verifier.verify_signal.return_value = accepted
+        verifier.verify_artifact.return_value = accepted
+        super().__init__(repository, assessment_verifier=verifier, **kwargs)
 
 
 def signal(kind: SignalType = SignalType.IMPROVEMENT, *, run: str = "run") -> LearningSignal:
@@ -53,11 +68,14 @@ async def test_incremental_processing_is_idempotent_and_requires_review() -> Non
     assert isinstance(stored_ids, list)
     assert stored_ids == sorted([str(first.signal_id), str(second.signal_id)])
     assert (await engine.process([first, second])).artifacts[0].version == 2
-    result = await engine.retrieve(RetrievalRequest(scope=first.scope, agent_id="agent"))
+    result = await engine.retrieve(
+        RetrievalRequest(scope=first.scope, agent_id="agent", task="search validate execute")
+    )
     assert not result.artifacts
     unsupported = signal(SignalType.APPROVAL)
     result = await engine.process([unsupported])
     assert result.unsupported_signal_ids == (unsupported.signal_id,)
+    await engine.aclose()
 
 
 async def test_manual_review_and_activation_enforce_policy_and_scope() -> None:
@@ -84,11 +102,16 @@ async def test_manual_review_and_activation_enforce_policy_and_scope() -> None:
     assert validated.validation_history[-1].reviewed_version == ready.version
     active = await engine.activate(validated.scope, validated.artifact_id)
     assert active.status is ArtifactStatus.ACTIVE
-    result = await engine.retrieve(RetrievalRequest(scope=active.scope, agent_id="agent"))
+    result = await engine.retrieve(
+        RetrievalRequest(scope=active.scope, agent_id="agent", task="search validate execute")
+    )
     assert result.artifacts == (active,)
     assert not (
-        await engine.retrieve(RetrievalRequest(scope=active.scope, agent_id="other"))
+        await engine.retrieve(
+            RetrievalRequest(scope=active.scope, agent_id="other", task="search validate execute")
+        )
     ).artifacts
+    await engine.aclose()
 
 
 async def test_rejected_review_is_audited_and_terminal() -> None:
@@ -126,8 +149,11 @@ async def test_invalidated_feedback_requires_review_and_cannot_be_restored_by_re
         0
     ] == replayed
     assert not (
-        await engine.retrieve(RetrievalRequest(scope=active.scope, agent_id="agent"))
+        await engine.retrieve(
+            RetrievalRequest(scope=active.scope, agent_id="agent", task="search validate execute")
+        )
     ).artifacts
+    await engine.aclose()
 
 
 async def test_new_evidence_returns_active_artifact_to_review() -> None:
@@ -161,15 +187,15 @@ async def test_new_evidence_returns_active_artifact_to_review() -> None:
     active = await repository.update(
         evolve(validated, status=ArtifactStatus.ACTIVE), expected_version=3
     )
-    assert (await engine.retrieve(RetrievalRequest(scope=active.scope, agent_id="agent"))).artifacts
+    request = RetrievalRequest(scope=active.scope, agent_id="agent", task="search validate execute")
+    assert (await engine.retrieve(request)).artifacts
     changed = (await engine.process([signal(run="run-3")])).artifacts[0]
     assert changed.status is ArtifactStatus.UNDER_REVIEW
     assert changed.version == 5
     assert changed.validation_history == active.validation_history
     assert changed.evidence_count == 3
-    assert not (
-        await engine.retrieve(RetrievalRequest(scope=active.scope, agent_id="agent"))
-    ).artifacts
+    assert not (await engine.retrieve(request)).artifacts
+    await engine.aclose()
 
 
 async def test_conflicting_signal_evidence_cannot_overwrite_existing_evidence() -> None:

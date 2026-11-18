@@ -53,10 +53,8 @@
     traces, write an [observability sink](concepts/observability.md).
 
 ??? question "Which Python versions are supported?"
-    Python 3.12, 3.13, 3.14, and 3.15, on Linux, macOS, and Windows. The
-    `lancedb` and `ladybugdb` extras need Python 3.14 or earlier until those
-    databases publish Python 3.15 wheels. On Windows, the `ladybugdb` extra
-    needs a uv-managed Python; see
+    Python 3.12, 3.13, and 3.14, on Linux, macOS, and Windows. On Windows,
+    the `ladybugdb` extra needs a uv-managed Python; see
     [troubleshooting](operations/troubleshooting.md#storage).
 
 ??? question "How stable is the API?"

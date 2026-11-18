@@ -12,15 +12,16 @@ The sink emits feedback-event spans and a low-cardinality event counter.
 Payloads, exception messages and arbitrary event attributes are excluded. IDs are
 opt-in span attributes, never metric labels.
 
-Pass the same sink as `observer=` to `LearningEngine`, `ArtifactIndexer` and a
-hybrid/vector/graph retriever to enable operation spans and a duration histogram.
+Pass the same sink as `observer=` to `LearningEngine` and
+`RetrievalLoomRetriever` to enable operation spans and a duration histogram.
 Background jobs inherit the engine's observer. These scopes include learning
-batches, jobs, projections, retrieval, embedding calls and projection-database
-operations. Operation names and outcome labels are bounded; exception payloads
-and stack events are excluded. Context follows the current async task. Custom
-observers subclass the framework-neutral `OperationObserver` base class and must
-not suppress failures. This is operation-level timing, not instrumentation of
-every internal query in an arbitrary provider SDK.
+batches, jobs, projection synchronization and retrieval. Legacy
+`ArtifactIndexer` and vector/graph retrievers also accept an observer for
+compatibility. Operation names and outcome labels are bounded; exception
+payloads and stack events are excluded. Context follows the current async task.
+Custom observers subclass the framework-neutral `OperationObserver` base class
+and must not suppress failures. This is operation-level timing, not
+instrumentation of every internal query in an arbitrary provider SDK.
 
 ```python
 from feedback_manager.learning.engine import LearningEngine

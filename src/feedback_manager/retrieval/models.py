@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from feedback_manager.core._types import Identifier
+from feedback_manager.core._types import Identifier, JsonObject
 from feedback_manager.learning.models import ArtifactType, LearnedArtifact, TenantScope
 
 
@@ -38,6 +38,7 @@ class RetrievedArtifact(BaseModel):
     confidence_score: float = Field(ge=0.0, le=1.0)
     evidence_count: int = Field(ge=0)
     explanation: tuple[str, ...]
+    engine_evidence: tuple[JsonObject, ...] = ()
 
 
 class RetrievalResult(BaseModel):
@@ -47,6 +48,8 @@ class RetrievalResult(BaseModel):
 
     results: tuple[RetrievedArtifact, ...]
     truncated: bool = False
+    retrieval_snapshot: JsonObject | None = None
+    retrieval_warnings: tuple[JsonObject, ...] = ()
 
     @property
     def artifacts(self) -> tuple[LearnedArtifact, ...]:

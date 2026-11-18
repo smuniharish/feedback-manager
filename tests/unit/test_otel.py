@@ -66,7 +66,7 @@ async def test_learning_operation_traces_and_safe_failure_timing():
         FeedbackTargetType,
     )
     from feedback_manager.embeddings import HashingEmbeddingProvider
-    from feedback_manager.learning import ArtifactScope
+    from feedback_manager.learning import ArtifactScope, ContextScopeResolver
     from feedback_manager.learning.engine import LearningEngine
     from feedback_manager.retrieval import ArtifactIndexer, HybridRetriever, RetrievalRequest
     from feedback_manager.storage.artifacts import InMemoryArtifactRepository
@@ -84,7 +84,11 @@ async def test_learning_operation_traces_and_safe_failure_timing():
     repo, vectors, graph = InMemoryArtifactRepository(), InMemoryVectorStore(), InMemoryGraphStore()
     engine, provider = LearningEngine(repo, observer=sink), HashingEmbeddingProvider()
     try:
-        async with FeedbackManager(learning_engine=engine, observability_sink=sink) as manager:
+        async with FeedbackManager(
+            learning_engine=engine,
+            learning_scope_resolver=ContextScopeResolver(namespace=scope.namespace),
+            observability_sink=sink,
+        ) as manager:
             await manager.submit(
                 source="human",
                 category="correction",
@@ -94,6 +98,13 @@ async def test_learning_operation_traces_and_safe_failure_timing():
             )
             assert manager.background_learner is not None
             await manager.background_learner.drain()
+        from feedback_manager.learning import ExecutionOutcome
+        from feedback_manager.learning.signals import LearningSignalExtractor
+
+        outcome = ExecutionOutcome(
+            execution_id="outcome-run", scope=scope, success=True, description="done"
+        )
+        await engine.process([LearningSignalExtractor().extract_outcome(outcome)])
         artifact = await active_artifact(repo, scope)
         await engine.request_review(scope, artifact.artifact_id)
         await engine.review(scope, artifact.artifact_id, reviewer="reviewer", approved=True)

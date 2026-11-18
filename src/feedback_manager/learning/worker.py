@@ -1,9 +1,10 @@
-"""Automatic background learning from feedback lifecycle changes.
+"""Background processing of feedback changes and separately accepted assessments.
 
-`BackgroundLearner` subscribes to a `FeedbackManager`, records one durable job per
-learnable feedback state, and processes jobs in a supervised asyncio task with
-retries, exponential backoff, and a dead-letter state. `recover` replays an atomic
-feedback journal; `reconcile` is only a best-effort scan of current snapshots.
+`BackgroundLearner` subscribes to a `FeedbackManager` and records feedback-state
+jobs for invalidation. Learning requires a separately enqueued accepted assessment.
+The worker uses retries, exponential backoff and dead letters. `recover` replays
+the feedback journal, `recover_assessments` replays accepted assessment decisions,
+and `reconcile` is a best-effort scan.
 """
 
 from __future__ import annotations
@@ -30,10 +31,12 @@ from feedback_manager.learning.jobs import LearningJob, LearningJobStatus, Learn
 from feedback_manager.learning.models import ArtifactScope, ScopeVisibility
 from feedback_manager.learning.signals import ExtractionDisposition, LearningSignalExtractor
 from feedback_manager.observability.operations import operation
+from feedback_manager.storage.payload import PayloadScope
 
 if TYPE_CHECKING:
     from collections.abc import Callable
     from types import TracebackType
+    from uuid import UUID
 
     from feedback_manager.api.manager import FeedbackManager
     from feedback_manager.api.subscription import Subscription
@@ -42,6 +45,8 @@ if TYPE_CHECKING:
     from feedback_manager.core.events import FeedbackEvent
     from feedback_manager.learning.engine import LearningEngine
     from feedback_manager.learning.jobs import LearningJobStore
+    from feedback_manager.learning.signals import SignalExtractor
+    from feedback_manager.storage.assessment import AssessmentRepositoryABC
 
 _logger = get_logger("feedback_manager.learning.worker")
 
@@ -109,30 +114,30 @@ def as_scope_resolver(
 class ContextScopeResolver(ScopeResolver):
     """Derive the scope from the feedback's execution context.
 
-    Feedback with an ``agent_id`` is learned privately for that agent; feedback
-    without one is shared tenant-wide. Feedback without a tenant uses
-    ``default_tenant``, or is skipped when that is ``None``.
+    The host must provide an authenticated application namespace. If an
+    application ID is present, it must match that namespace. Feedback without
+    an agent or a trusted tenant is quarantined. A host that intentionally
+    permits sharing or maps application IDs differently can supply a resolver.
     """
 
     default_tenant: str | None = None
-    namespace: str = "default"
+    namespace: str | None = None
 
     def __call__(self, feedback: FeedbackEvent) -> ArtifactScope | None:
-        """Resolve feedback into a tenant and optional private agent scope."""
+        """Resolve feedback into a private agent scope, or quarantine it."""
         context = feedback.execution_context
-        tenant = (context.tenant_id if context is not None else None) or self.default_tenant
+        if self.namespace is None or context is None or context.agent_id is None:
+            return None
+        if context.application_id is not None and context.application_id != self.namespace:
+            return None
+        tenant = context.tenant_id or self.default_tenant
         if tenant is None:
             return None
-        agent_id = context.agent_id if context is not None else None
-        if agent_id is not None:
-            return ArtifactScope(
-                tenant_id=tenant,
-                namespace=self.namespace,
-                visibility=ScopeVisibility.AGENT,
-                agent_id=agent_id,
-            )
         return ArtifactScope(
-            tenant_id=tenant, namespace=self.namespace, visibility=ScopeVisibility.TENANT
+            tenant_id=tenant,
+            namespace=self.namespace,
+            visibility=ScopeVisibility.AGENT,
+            agent_id=context.agent_id,
         )
 
 
@@ -190,11 +195,12 @@ class LearningWorkerStats:
     invalidated: int = 0
     retried: int = 0
     dead_lettered: int = 0
+    lease_lost: int = 0
     errors: dict[str, int] = field(default_factory=dict)
 
 
 class BackgroundLearner(FeedbackSubscriber):
-    """Learn from feedback automatically, durably, and idempotently.
+    """Process feedback changes and separately accepted assessments.
 
     Example:
         ```python
@@ -202,13 +208,18 @@ class BackgroundLearner(FeedbackSubscriber):
             manager,
             engine,
             SQLiteLearningJobStore("jobs.db"),
-            scope_resolver=ContextScopeResolver(),
+            scope_resolver=ContextScopeResolver(namespace="my-app"),
         )
-        async with learner:  # subscribes and starts the worker
+        async with learner:  # subscribes to feedback-state changes
             await manager.submit(...)
+            # After an independent assessment and learning decision:
+            await learner.enqueue_assessment(feedback_id, assessment_id, assessment_version=1)
         ```
 
     Learned artifacts are still candidates: publication remains an explicit review.
+    Assessment decisions and jobs do not share a transaction; call
+    `recover_assessments` at startup to re-enqueue accepted decisions after a
+    crash. Memory stores do not provide durability.
     """
 
     def __init__(
@@ -218,7 +229,7 @@ class BackgroundLearner(FeedbackSubscriber):
         store: LearningJobStore,
         *,
         scope_resolver: ScopeResolver | Callable[[FeedbackEvent], ArtifactScope | None],
-        extractor: LearningSignalExtractor | None = None,
+        extractor: SignalExtractor | None = None,
         retry: RetryPolicy | None = None,
         batch_size: int = 10,
         lease: timedelta = timedelta(minutes=1),
@@ -232,18 +243,30 @@ class BackgroundLearner(FeedbackSubscriber):
             raise ValueError("batch_size must be at least 1")
         if lease <= timedelta(0) or poll_interval <= 0:
             raise ValueError("lease and poll_interval must be positive")
+        verifier = engine.assessment_verifier
         if require_durable and (
-            not store.durable or not engine.repository.durable or change_source is None
+            not store.durable
+            or not engine.repository.durable
+            or change_source is None
+            or verifier is None
+            or not verifier.assessments.durable
+            or not verifier.experiences.durable
         ):
             raise UnsupportedCapabilityError(
                 "durable learning requires a durable artifact repository, job store "
-                "and atomic feedback change source"
+                "and atomic feedback change source, plus durable assessment and experience stores"
             )
         self.manager = manager
         self.engine = engine
         self.store = store
         self.scope_resolver = as_scope_resolver(scope_resolver)
-        self.extractor = extractor or LearningSignalExtractor()
+        self.extractor = (
+            extractor
+            if extractor is not None
+            else verifier.extractor
+            if verifier is not None
+            else LearningSignalExtractor()
+        )
         self.retry = retry or RetryPolicy()
         self.batch_size = batch_size
         self.lease = lease
@@ -269,7 +292,7 @@ class BackgroundLearner(FeedbackSubscriber):
         await self.enqueue(feedback)
 
     async def enqueue(self, feedback: FeedbackEvent) -> LearningJob | None:
-        """Record a job for the feedback's current state; return it, or ``None`` if skipped."""
+        """Record a feedback-state job for invalidation, or ``None`` if quarantined."""
         if feedback.status is FeedbackStatus.CREATED:
             self.stats.skipped += 1
             return None
@@ -282,6 +305,43 @@ class BackgroundLearner(FeedbackSubscriber):
             )
             return None
         job = LearningJob.for_feedback(feedback.feedback_id, feedback.status, scope)
+        if await self.store.enqueue(job):
+            self.stats.enqueued += 1
+            self._wake.set()
+        else:
+            self.stats.duplicates += 1
+        return job
+
+    async def enqueue_assessment(
+        self, feedback_id: UUID, assessment_id: UUID, *, assessment_version: int
+    ) -> LearningJob:
+        """Enqueue a separately accepted assessment, idempotently per version.
+
+        Decisions and jobs are not transactional; `recover_assessments` replays
+        accepted decisions missed by a crash between the two writes.
+        """
+        verifier = self.engine.assessment_verifier
+        if verifier is None:
+            raise UnsupportedCapabilityError("assessment learning requires an assessment verifier")
+        feedback = await self.manager.get(feedback_id)
+        if feedback is None:
+            raise LearningValidationError("feedback no longer exists")
+        scope = self.scope_resolver(feedback)
+        if scope is None:
+            raise LearningScopeError("feedback has no trusted learning scope")
+        verification = await verifier.verify(
+            PayloadScope.model_validate(scope.model_dump()),
+            assessment_id,
+            feedback_id=feedback_id,
+            assessment_version=assessment_version,
+        )
+        if not verification.eligible:
+            raise LearningValidationError(
+                f"feedback assessment verification failed: {verification.reason}"
+            )
+        job = LearningJob.for_assessment(
+            feedback_id, feedback.status, scope, assessment_id, assessment_version
+        )
         if await self.store.enqueue(job):
             self.stats.enqueued += 1
             self._wake.set()
@@ -342,6 +402,55 @@ class BackgroundLearner(FeedbackSubscriber):
                     break
             return self.stats.enqueued - before
 
+    async def recover_assessments(
+        self, assessments: AssessmentRepositoryABC, *, max_pages: int = 1000
+    ) -> int:
+        """Re-enqueue accepted decisions recorded after the saved feed checkpoint.
+
+        This closes the gap after a crash between ``decide`` and
+        ``enqueue_assessment``. Every decision is re-verified with a scope
+        resolved from current feedback; ineligible ones are logged and skipped.
+        Enqueueing is idempotent, so replay before a checkpoint is safe. Other
+        errors propagate without advancing the checkpoint.
+        """
+        if max_pages < 1:
+            raise ValueError("max_pages must be positive")
+        key = f"{self.checkpoint_key}:assessment-decisions"
+        async with self._recovery:
+            cursor = await self.store.checkpoint(key)
+            before = self.stats.enqueued
+            for _ in range(max_pages):
+                page = await assessments.decision_changes(after=cursor, limit=self.batch_size)
+                if (
+                    len(page.changes) > self.batch_size
+                    or (page.changes and page.cursor in (None, cursor))
+                    or (page.has_more and not page.changes)
+                ):
+                    raise LearningValidationError("decision feed returned an invalid page")
+                for change in page.changes:
+                    decision = change.decision
+                    if not decision.accepted:
+                        continue
+                    try:
+                        await self.enqueue_assessment(
+                            change.feedback_id,
+                            decision.assessment_id,
+                            assessment_version=decision.assessment_version,
+                        )
+                    except (LearningScopeError, LearningValidationError) as error:
+                        self.stats.skipped += 1
+                        _logger.info(
+                            "accepted decision skipped during recovery",
+                            decision_id=str(decision.decision_id),
+                            error_type=type(error).__name__,
+                        )
+                if page.changes and page.cursor is not None:
+                    await self.store.save_checkpoint(key, page.cursor)
+                    cursor = page.cursor
+                if not page.has_more:
+                    break
+            return self.stats.enqueued - before
+
     async def run_once(self) -> int:
         """Claim and process one batch of due jobs; return how many were processed."""
         async with self._processing:
@@ -365,6 +474,9 @@ class BackgroundLearner(FeedbackSubscriber):
         return total
 
     async def _process(self, job: LearningJob) -> None:
+        # Once the lease expires another worker may reclaim the job; its stale
+        # outcome is fenced and dropped. Learning writes are idempotent, so the
+        # current claim redoes them safely.
         try:
             await self._learn(job)
         except asyncio.CancelledError:
@@ -373,10 +485,18 @@ class BackgroundLearner(FeedbackSubscriber):
             try:
                 await self._fail(job, exc)
             except LearningLeaseLostError:
-                _logger.warning("learning job lease lost", job_id=str(job.job_id))
+                self._lease_lost(job)
         else:
-            await self.store.complete(job.job_id, attempt=job.attempts)
-            self.stats.succeeded += 1
+            try:
+                await self.store.complete(job.job_id, attempt=job.attempts)
+            except LearningLeaseLostError:
+                self._lease_lost(job)
+            else:
+                self.stats.succeeded += 1
+
+    def _lease_lost(self, job: LearningJob) -> None:
+        self.stats.lease_lost += 1
+        _logger.warning("learning job lease lost", job_id=str(job.job_id))
 
     async def _learn(self, job: LearningJob) -> None:
         with operation(self.engine.observer, "learning.job"):
@@ -386,14 +506,24 @@ class BackgroundLearner(FeedbackSubscriber):
         feedback = await self.manager.get(job.feedback_id)
         if feedback is None:
             raise LearningValidationError(f"feedback {job.feedback_id} no longer exists")
+        if feedback.status in _INVALIDATING:
+            await self.engine.invalidate_feedback(job.scope, feedback.feedback_id)
+            self.stats.invalidated += 1
+        if job.assessment_id is None or job.assessment_version is None:
+            self.stats.ignored += 1
+            return
         extraction = self.extractor.extract(feedback, scope=job.scope)
         if extraction.disposition is ExtractionDisposition.EXTRACTED:
             assert extraction.signal is not None
-            await self.engine.process([extraction.signal])
+            signal = extraction.signal
+            evidence = signal.evidence.model_copy(
+                update={
+                    "assessment_id": job.assessment_id,
+                    "assessment_version": job.assessment_version,
+                }
+            )
+            await self.engine.process([signal.model_copy(update={"evidence": evidence})])
             self.stats.learned += 1
-        elif feedback.status in _INVALIDATING:
-            await self.engine.invalidate_feedback(job.scope, feedback.feedback_id)
-            self.stats.invalidated += 1
         else:
             self.stats.ignored += 1
 

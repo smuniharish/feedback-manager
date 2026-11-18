@@ -6,6 +6,7 @@
 ::: feedback_manager.learning.engine
 ::: feedback_manager.learning.signals
 ::: feedback_manager.learning.patterns
+::: feedback_manager.learning.synthesis
 ::: feedback_manager.learning.confidence
 ::: feedback_manager.learning.validation
 
@@ -19,6 +20,7 @@
 
 ::: feedback_manager.retrieval.models
 ::: feedback_manager.retrieval.base
+::: feedback_manager.retrieval.retrievalloom
 ::: feedback_manager.retrieval.structured
 ::: feedback_manager.retrieval.hybrid
 ::: feedback_manager.retrieval.indexing
@@ -39,6 +41,11 @@
 ::: feedback_manager.storage.graph.base
 ::: feedback_manager.storage.graph.memory
 ::: feedback_manager.storage.graph.ladybug
+::: feedback_manager.storage.payload
+::: feedback_manager.storage.experience
+::: feedback_manager.storage.assessment
+::: feedback_manager.storage.purge
+::: feedback_manager.storage.postgres
 
 ## Tenant access and telemetry
 

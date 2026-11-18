@@ -28,9 +28,12 @@ class TestQdrantVectorStore(VectorStoreContract):
 | `GraphStoreContract` | `make_graph_store` | `GraphStore` |
 | `LearningJobStoreContract` | `make_job_store` | `LearningJobStore` |
 | `EmbeddingProviderContract` | `make_provider` | `EmbeddingProvider` |
+| `PayloadStoreContract` | `make_payload_store` | `PayloadStoreABC` |
+| `ExperienceRepositoryContract` | `make_experience_repository` | `ExperienceRepositoryABC` |
+| `AssessmentRepositoryContract` | `make_assessment_repository` | `AssessmentRepositoryABC` |
 
 Every bundled implementation passes these tests, including the LanceDB and
-LadybugDB adapters. For an agxai `ProvenanceStore`, use
+LadybugDB adapters and the PostgreSQL experience, assessment and payload stores. For an agxai `ProvenanceStore`, use
 `agxai.testing.ProvenanceStoreContract`.
 
 ::: feedback_manager.testing.FeedbackStoreContract
@@ -44,3 +47,9 @@ LadybugDB adapters. For an agxai `ProvenanceStore`, use
 ::: feedback_manager.testing.LearningJobStoreContract
 
 ::: feedback_manager.testing.EmbeddingProviderContract
+
+::: feedback_manager.testing.PayloadStoreContract
+
+::: feedback_manager.testing.ExperienceRepositoryContract
+
+::: feedback_manager.testing.AssessmentRepositoryContract

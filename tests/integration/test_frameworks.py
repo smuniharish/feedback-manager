@@ -234,12 +234,28 @@ class TestHumanInTheLoopBridge:
 
         assert request.payload == {"prompt": "Approve?"}
 
-    async def test_a_prompt_without_json_form_is_stored_as_text(self) -> None:
-        bridge = CustomAgentAdapter().human_in_the_loop(FeedbackManager())
+    @pytest.mark.parametrize("prompt", [object(), {"nested": object()}, float("nan")])
+    async def test_a_non_json_prompt_is_rejected_without_recording_feedback(
+        self, prompt: object
+    ) -> None:
+        manager = FeedbackManager(learning=False)
+        bridge = CustomAgentAdapter().human_in_the_loop(manager)
 
-        request = await bridge.request(target=TARGET, prompt=object)
+        with pytest.raises(FeedbackValidationError, match="JSON-compatible"):
+            await bridge.request(target=TARGET, prompt=prompt)
 
-        assert request.payload == {"prompt": str(object)}
+        assert await manager.query() == []
+
+    @pytest.mark.parametrize("response", [object(), {"nested": object()}, float("inf")])
+    async def test_a_non_json_response_does_not_change_feedback(self, response: object) -> None:
+        manager = FeedbackManager(learning=False)
+        bridge = CustomAgentAdapter().human_in_the_loop(manager)
+        request = await bridge.request(target=TARGET, prompt={"question": "Proceed?"})
+
+        with pytest.raises(FeedbackValidationError, match="JSON-compatible"):
+            await bridge.resolve(request.feedback_id, response=response, approved=True)
+
+        assert await manager.get(request.feedback_id) == request
 
     async def test_a_refusal_rejects_the_request(self) -> None:
         manager = FeedbackManager()

@@ -1,4 +1,4 @@
-from unittest.mock import patch
+from unittest.mock import create_autospec, patch
 from uuid import uuid4
 
 import pytest
@@ -8,10 +8,15 @@ from feedback_manager.embeddings import HashingEmbeddingProvider
 from feedback_manager.learning import (
     ArtifactScope,
     ArtifactStatus,
+    Evidence,
     LearningScopeError,
     LearningValidationError,
     TenantScope,
     UnsupportedCapabilityError,
+)
+from feedback_manager.learning.assessment_verification import (
+    AssessmentVerification,
+    AssessmentVerifier,
 )
 from feedback_manager.learning.engine import LearningEngine
 from feedback_manager.retrieval import ArtifactIndexer
@@ -27,8 +32,16 @@ FOREIGN = TenantScope(tenant_id="other")
 async def test_atomic_publication_crash_partial_projection_and_reopen(tmp_path):
     path = tmp_path / "artifacts.db"
     repo = SQLiteArtifactRepository(path)
-    artifact = await active_artifact(repo, SCOPE)
-    engine = LearningEngine(repo, atomic_publication=True)
+    evidence = tuple(
+        Evidence(feedback_id=uuid4(), source="human", independence_key=f"run-{number}")
+        for number in range(2)
+    )
+    artifact = await active_artifact(repo, SCOPE, evidence=evidence)
+    verifier = create_autospec(AssessmentVerifier, instance=True)
+    verifier.verify_artifact.return_value = AssessmentVerification(
+        eligible=True, reason="test-double"
+    )
+    engine = LearningEngine(repo, atomic_publication=True, assessment_verifier=verifier)
     await engine.request_review(SCOPE, artifact.artifact_id)
     await engine.review(SCOPE, artifact.artifact_id, reviewer="reviewer", approved=True)
     artifact = await engine.activate(SCOPE, artifact.artifact_id)

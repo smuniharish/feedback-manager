@@ -9,8 +9,8 @@ needs an external service.
 
     ---
 
-    Install the core, or add the LangChain extra and the LanceDB, LadybugDB
-    and OpenTelemetry extras you use.
+    Install the core, or add the LangChain and OpenTelemetry extras you use.
+    RetrievalLoom is included with the core package; it needs no model download.
 
 -   :material-rocket-launch:{ .lg .middle } __[Quickstart](quickstart.md)__
 

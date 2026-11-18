@@ -113,12 +113,22 @@ Job statuses: `pending`, `running`, `succeeded`, `dead_lettered`.
 
 - Delivery is at least once when the feedback source, job store, and
   artifact repository are all durable.
-- There is no distributed transaction across feedback, artifacts, LanceDB,
-  and LadybugDB. With `atomic_publication=True` and a repository that
-  supports projection intents, publication and its projection intent commit
-  together, and `ArtifactIndexer.drain_intents(scope)` applies them until
-  they succeed. Run it at startup and periodically from one projector per
-  tenant and namespace.
+- There is no distributed transaction across feedback, artifacts, and the
+  RetrievalLoom projection. With `atomic_publication=True` and a repository
+  that supports projection intents, the artifact change and its projection
+  intent commit together. `RetrievalLoomRetriever.drain_intents(scope)` applies
+  and acknowledges a bounded page; retrieval also drains intents before
+  searching. This does not make the retrieval index authoritative or durable.
+- An owned retriever's projection is process-local. Over a durable repository
+  shared by several processes, it rebuilds each scope after `projection_ttl`
+  (default 30 seconds), so another process's newly activated artifact can lag by
+  up to that long. Stale or deprecated artifacts are never returned, because
+  every hit is revalidated.
+- `SQLiteLearningJobStore` is safe across processes on one host only. Workers
+  on several hosts need a networked `LearningJobStore` certified with
+  `LearningJobStoreContract`.
+- The legacy LanceDB and LadybugDB adapters are compatibility paths, not the
+  default retrieval engine.
 - Use one learning writer per tenant and namespace for review, activation,
   and `invalidate_feedback`.
 
@@ -127,6 +137,9 @@ Job statuses: `pending`, `running`, `succeeded`, `dead_lettered`.
 Learning operations (`learning.batch`, `learning.job`,
 `learning.projection`, `learning.retrieval`) report to an `OperationObserver`.
 `OpenTelemetryObservabilitySink` is both a sink and an observer: pass it as
-`observability_sink=` to the manager and `observer=` to `LearningEngine`,
-`ArtifactIndexer`, and the retrievers; background jobs use the engine's. Alert on growing `dead_lettered` counts and on `pending` jobs older
-than a few lease periods.
+`observability_sink=` to the manager and `observer=` to `LearningEngine` or
+`RetrievalLoomRetriever`; background jobs use the engine's observer. The legacy
+`ArtifactIndexer` and retrievers also accept an observer. Alert on growing
+`dead_lettered` counts and on `pending` jobs older than a few lease periods.
+A rising `learner.stats.lease_lost` means jobs outlive their lease and are
+redone; lengthen the lease.

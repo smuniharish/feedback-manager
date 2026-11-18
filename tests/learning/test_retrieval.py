@@ -1,5 +1,4 @@
 from datetime import timedelta
-from uuid import uuid4
 
 import pytest
 
@@ -43,11 +42,13 @@ async def active_artifact(
     scope: ArtifactScope,
     *,
     content: str = "Search then validate results",
+    evidence: tuple[Evidence, ...] | None = None,
 ) -> LearnedArtifact:
-    evidence = tuple(
-        Evidence(feedback_id=uuid4(), source="human", independence_key=f"run-{number}")
-        for number in range(2)
-    )
+    if evidence is None:
+        evidence = tuple(
+            Evidence(execution_id=f"run-{number}", source="human", independence_key=f"run-{number}")
+            for number in range(2)
+        )
     candidate = await repository.create(
         LearnedArtifact(
             artifact_type=ArtifactType.STRATEGY,
@@ -221,3 +222,40 @@ async def test_retrieval_fails_closed_for_a_misbehaving_repository() -> None:
         await retriever.retrieve(
             RetrievalRequest(scope=TenantScope(tenant_id="tenant"), agent_id="agent")
         )
+
+
+async def test_legacy_retrieval_entry_points_are_deprecated() -> None:
+    import warnings
+
+    from feedback_manager.embeddings import CallableEmbeddingProvider
+    from feedback_manager.embeddings.models import EmbeddingSpace
+    from feedback_manager.retrieval import (
+        ArtifactIndexer,
+        GraphRetriever,
+        HybridRetriever,
+        VectorRetriever,
+    )
+    from feedback_manager.storage.graph import InMemoryGraphStore
+    from feedback_manager.storage.vector import InMemoryVectorStore
+
+    repository = InMemoryArtifactRepository()
+    vectors = InMemoryVectorStore()
+    graph = InMemoryGraphStore()
+    provider = CallableEmbeddingProvider(
+        EmbeddingSpace(provider="test", model="test", revision="1", dimensions=1),
+        lambda texts: [[1.0] for _ in texts],
+    )
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        guard = StructuredRetriever(repository)
+    request = RetrievalRequest(scope=TenantScope(tenant_id="tenant"), task="validate")
+    with pytest.warns(DeprecationWarning, match="StructuredRetriever.retrieve is deprecated"):
+        await guard.retrieve(request)
+    for factory, name in (
+        (lambda: HybridRetriever(repository, vectors, provider), "HybridRetriever"),
+        (lambda: VectorRetriever(repository, vectors, provider), "VectorRetriever"),
+        (lambda: GraphRetriever(repository, graph), "GraphRetriever"),
+        (lambda: ArtifactIndexer(repository, vectors, provider), "ArtifactIndexer"),
+    ):
+        with pytest.warns(DeprecationWarning, match=f"{name} is deprecated"):
+            factory()

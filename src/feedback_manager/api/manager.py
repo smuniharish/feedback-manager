@@ -131,11 +131,11 @@ class FeedbackManager:
             remain candidates until explicitly reviewed and activated.
         learning_engine: Optional engine with an application-supplied artifact repository.
         learning_job_store: Optional durable queue. Defaults to in-memory jobs.
-        learning_scope_resolver: Trusted scope resolver. By default feedback without
-            a tenant is skipped and counted, never assigned a guessed tenant.
+        learning_scope_resolver: Trusted scope resolver. By default feedback is
+            quarantined until the host supplies a resolver with an application scope.
         learning_change_source: Optional atomic replay feed; inferred from a compatible store.
-        require_durable_learning: Reject non-durable artifact/queue or missing
-            change-feed providers.
+        require_durable_learning: Reject non-durable artifact, queue, assessment,
+            or experience stores or a missing feedback change feed.
 
     Raises:
         FeedbackConfigurationError: If a collaborator has the wrong type.
@@ -203,6 +203,7 @@ class FeedbackManager:
         self._lock = threading.Lock()
         self._subscribers: dict[object, FeedbackSubscriber] = {}
         self._streams: set[FeedbackStream] = set()
+        self._owns_learning_engine = learning and learning_engine is None
         if require_durable_learning and not learning:
             raise FeedbackConfigurationError("durable learning cannot be requested when disabled")
         self.learning_engine = (
@@ -537,6 +538,8 @@ class FeedbackManager:
         if self.background_learner is not None:
             await self.background_learner.stop()
             await self.background_learner.drain()
+        if self._owns_learning_engine and self.learning_engine is not None:
+            await self.learning_engine.aclose()
 
     async def __aenter__(self) -> Self:
         if (
@@ -743,7 +746,6 @@ class FeedbackManager:
             event,
             stage=str(stage),
             error_type=type(error).__name__,
-            error=str(error),
         )
 
     def _emit(self, name: str, event: FeedbackEvent, **attributes: Any) -> None:
@@ -767,7 +769,6 @@ class FeedbackManager:
                 event_name=name,
                 feedback_id=str(event.feedback_id),
                 error_type=type(exc).__name__,
-                exc_info=exc,
             )
 
     def _unsubscribe(self, token: object) -> None:

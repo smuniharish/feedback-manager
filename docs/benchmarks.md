@@ -6,6 +6,10 @@ measured on one machine, and how to measure them on yours.
 
 ## Results
 
+These historical measurements predate assessment gating and the current
+synthetic-outcome retrieval setup; rerun the benchmark rather than treating
+them as current performance.
+
 Each scenario times one operation 1,000 times after 20 untimed warmup calls.
 Every scenario uses the default in-memory stores and no observability export,
 so no network time is included. Retrieval runs over 50 reviewed, active
@@ -21,9 +25,9 @@ lessons, built through the public learning workflow.
 
 - **Recording feedback costs about 0.13 ms at p50.** Validation, correlation,
   storage, publication and routing all happen inside that call.
-- **Automatic learning adds about 0.08 ms per submission.** The call only
-  enqueues a job; the background learner extracts signals and builds lessons
-  outside the request.
+- **The former background configuration added about 0.08 ms per submission.**
+  In the current workflow, submission queues a feedback-state job; an accepted
+  assessment must be enqueued separately before feedback is learned.
 - **Retrieval is the expensive step.** Structured retrieval re-checks every
   candidate's scope, review state and applicability. Hybrid retrieval also
   embeds the task and searches LanceDB on local disk. Retrieve once per agent
@@ -39,7 +43,7 @@ lessons, built through the public learning workflow.
 | CPU | Intel Core Ultra 7 265HX |
 | OS | Windows 11 |
 | Python | 3.12.16 |
-| Packages | feedback-manager 0.1.2, agxai 1.0.2, pydantic 2.14.3, lancedb 0.41.0 |
+| Packages | feedback-manager 0.2.0, agxai 1.0.2, pydantic 2.14.3, lancedb 0.41.0 |
 
 Timings are taken with `tracemalloc` running, which slows every scenario by a
 similar amount. Compare scenarios with each other, not with numbers from

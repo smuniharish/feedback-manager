@@ -13,9 +13,9 @@ description: >-
   (use feedback-manager-extend), or to build a tracing platform, an evaluation
   framework, or a UI.
 license: Apache-2.0
-compatibility: Python 3.12 or newer. Installs feedback-manager 0.1.x from PyPI, which brings agxai 1.x; the LangChain and LangGraph adapter needs the feedback-manager[langchain] extra. scripts/verify_setup.py runs offline in the project's Python environment.
+compatibility: Python 3.12–3.14. Installs feedback-manager 0.2.x from PyPI, which brings agxai 1.x and RetrievalLoom 0.2.x; the LangChain and LangGraph adapter needs the feedback-manager[langchain] extra. scripts/verify_setup.py runs offline in the project's Python environment.
 metadata:
-  version: "0.1.2"
+  version: "0.2.0"
   documentation: "https://feedback-manager.readthedocs.io"
 ---
 

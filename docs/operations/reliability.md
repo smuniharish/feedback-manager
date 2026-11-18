@@ -54,11 +54,14 @@ For learning, prefer the [atomic change-feed and checkpoint recovery
 workflow](../how-to/background-learning.md). Memory defaults lose completed
 artifacts and jobs on restart. Cross-store artifact publication and projections
 are not a distributed transaction; stale projections are rejected at retrieval.
-Providers advertising atomic projection intents can commit an artifact version
-and its outbox request together. Enable `LearningEngine(...,
+Repositories advertising atomic projection intents can commit an artifact
+version and its outbox request together. Enable `LearningEngine(...,
 atomic_publication=True)` to require that capability, then serialize
-`ArtifactIndexer.drain_intents` and reindexing per scope. The SQLite artifact
-example and crash/partial-write tests exercise this path.
+`RetrievalLoomRetriever.drain_intents` and reindexing per scope. The bundled
+in-memory repository does not provide durable projection intents. With several
+processes, each owned projection catches up with other processes' publications
+within `projection_ttl`; see
+[multiple processes](../how-to/background-learning.md#multiple-processes-and-multiple-hosts).
 
 ## Choosing a store
 

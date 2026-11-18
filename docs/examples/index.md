@@ -49,5 +49,6 @@ Infrastructure-backed patterns.
 | [11 Grafana dashboard](production.md#grafana-dashboard) | Dashboards over the feedback table, and lifecycle annotations from a sink. | PostgreSQL, Grafana |
 | [12 Realistic data](production.md#realistic-data) | Varied, organic feedback for the dashboard. | PostgreSQL |
 | [Streamlit UI](production.md#streamlit-ui) | A feedback capture and review screen. | Optionally PostgreSQL |
-| [15 Background learning](../how-to/background-learning.md) | Durable automatic learning, LanceDB vectors, a LadybugDB graph, and hybrid retrieval. | `lancedb`, `ladybugdb` extras |
-| [16 Bring your own components](../how-to/customize-components.md#a-complete-example) | Your own feedback store, agxai store, LanceDB connection, and LadybugDB database, certified with a contract kit. | `lancedb`, `ladybugdb` extras |
+| [15 Background learning](../how-to/background-learning.md) | Durable automatic learning with the default RetrievalLoom engine and tenant/agent isolation. | Examples group |
+| [16 Bring your own components](../how-to/customize-components.md#a-complete-example) | Inject an agxai provenance store and legacy LanceDB/LadybugDB adapters, certified with a contract kit. | `lancedb`, `ladybugdb` extras |
+| [17 Local BGE-M3](../how-to/hybrid-retrieval.md#optional-local-bge-m3-embeddings) | Inject a local FlagEmbedding model through RetrievalLoom's native embedding contract; no model download. | `models` group and ignored `models/bge-m3` checkpoint |

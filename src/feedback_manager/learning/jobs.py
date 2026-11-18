@@ -19,7 +19,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 from uuid import NAMESPACE_URL, UUID, uuid5
 
-from pydantic import AwareDatetime, BaseModel, ConfigDict, Field
+from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, model_validator
 
 from feedback_manager.learning.errors import LearningError
 from feedback_manager.learning.models import ArtifactScope
@@ -62,6 +62,8 @@ class LearningJob(BaseModel):
     feedback_id: UUID
     feedback_status: str
     scope: ArtifactScope
+    assessment_id: UUID | None = None
+    assessment_version: int | None = Field(default=None, ge=1, strict=True)
     status: LearningJobStatus = LearningJobStatus.PENDING
     attempts: int = Field(default=0, ge=0)
     retry_attempt: int = Field(default=0, ge=0)
@@ -70,6 +72,12 @@ class LearningJob(BaseModel):
     last_error: str | None = Field(default=None, max_length=MAX_ERROR_LENGTH)
     created_at: AwareDatetime = Field(default_factory=_now)
     updated_at: AwareDatetime = Field(default_factory=_now)
+
+    @model_validator(mode="after")
+    def _validate_assessment(self) -> LearningJob:
+        if (self.assessment_id is None) != (self.assessment_version is None):
+            raise ValueError("assessment ID and version must be supplied together")
+        return self
 
     @classmethod
     def for_feedback(
@@ -87,6 +95,35 @@ class LearningJob(BaseModel):
             feedback_id=feedback_id,
             feedback_status=status,
             scope=scope,
+        )
+
+    @classmethod
+    def for_assessment(
+        cls,
+        feedback_id: UUID,
+        feedback_status: FeedbackStatus | str,
+        scope: ArtifactScope,
+        assessment_id: UUID,
+        assessment_version: int,
+    ) -> LearningJob:
+        """Create a stable job for one separately accepted assessment version."""
+        key = json.dumps(
+            [
+                scope.model_dump(mode="json"),
+                str(feedback_id),
+                str(assessment_id),
+                assessment_version,
+            ],
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+        return cls(
+            job_id=uuid5(NAMESPACE_URL, f"feedback-manager:assessment-job:{key}"),
+            feedback_id=feedback_id,
+            feedback_status=str(feedback_status),
+            scope=scope,
+            assessment_id=assessment_id,
+            assessment_version=assessment_version,
         )
 
 

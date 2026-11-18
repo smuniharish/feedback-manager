@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import warnings
 from typing import TYPE_CHECKING
 
 from feedback_manager.embeddings.providers import validate_embeddings
@@ -35,6 +36,8 @@ class ArtifactIndexer:
     stores. Retry failed indexing or run ``reindex`` to repair missing projections.
     Reindex into a new provider's space before switching the retriever to it;
     retain the old space for rollback. No implicit cross-space conversion occurs.
+
+    Deprecated: ``RetrievalLoomRetriever`` projects artifacts into RetrievalLoom.
     """
 
     def __init__(
@@ -46,6 +49,11 @@ class ArtifactIndexer:
         graph: GraphStore | None = None,
         observer: OperationObserver | None = None,
     ) -> None:
+        warnings.warn(
+            "ArtifactIndexer is deprecated; use RetrievalLoomRetriever",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         self.repository = repository
         self.vectors = vectors
         self.provider = provider

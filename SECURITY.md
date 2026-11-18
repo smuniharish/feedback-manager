@@ -6,7 +6,9 @@ Security fixes are released for the latest version of `feedback-manager`.
 
 | Version | Supported |
 |---|---|
+| 0.2.x | Yes |
 | 0.1.x | Yes |
+| < 0.1.1 | No |
 | < 0.1.1 | No |
 
 ## Reporting a vulnerability

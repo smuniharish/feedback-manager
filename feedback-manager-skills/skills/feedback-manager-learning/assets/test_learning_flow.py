@@ -14,11 +14,28 @@ from typing import TYPE_CHECKING
 import pytest
 
 from feedback_manager import ExecutionContext, FeedbackManager, FeedbackTarget, FeedbackTargetType
+from feedback_manager.assessment import (
+    AssessmentEvidence,
+    AssessmentStatus,
+    ConservativeFeedbackCritic,
+    LearningDecision,
+)
+from feedback_manager.experience import ExecutionExperience
 from feedback_manager.integrations.frameworks.custom import CustomAgentAdapter
-from feedback_manager.learning import ArtifactScope, ArtifactStatus, LearningValidationError
+from feedback_manager.learning import (
+    ArtifactScope,
+    ArtifactStatus,
+    ContextScopeResolver,
+    LearningValidationError,
+)
+from feedback_manager.learning.assessment_verification import AssessmentVerifier
 from feedback_manager.learning.engine import LearningEngine
 from feedback_manager.retrieval import RetrievalRequest
+from feedback_manager.storage import InMemoryFeedbackStore
 from feedback_manager.storage.artifacts import ArtifactQuery, InMemoryArtifactRepository
+from feedback_manager.storage.assessment import InMemoryAssessmentRepository
+from feedback_manager.storage.experience import InMemoryExperienceRepository
+from feedback_manager.storage.payload import PayloadScope
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator
@@ -39,25 +56,81 @@ def repository() -> InMemoryArtifactRepository:
 
 
 @pytest.fixture
-def engine(repository: InMemoryArtifactRepository) -> LearningEngine:
-    return LearningEngine(repository)
+def feedback_store() -> InMemoryFeedbackStore:
+    return InMemoryFeedbackStore()
 
 
 @pytest.fixture
-async def manager(engine: LearningEngine) -> AsyncIterator[FeedbackManager]:
-    async with FeedbackManager(learning_engine=engine) as manager:  # Replace: your store.
+async def engine(
+    repository: InMemoryArtifactRepository, feedback_store: InMemoryFeedbackStore
+) -> AsyncIterator[LearningEngine]:
+    verifier = AssessmentVerifier(
+        feedback_store, InMemoryExperienceRepository(), InMemoryAssessmentRepository()
+    )
+    learning = LearningEngine(repository, assessment_verifier=verifier)
+    try:
+        yield learning
+    finally:
+        await learning.aclose()
+
+
+@pytest.fixture
+async def manager(
+    engine: LearningEngine, feedback_store: InMemoryFeedbackStore
+) -> AsyncIterator[FeedbackManager]:
+    async with FeedbackManager(
+        learning_engine=engine,  # Replace: your store.
+        store=feedback_store,
+        learning_scope_resolver=ContextScopeResolver(namespace=SCOPE.namespace),
+    ) as manager:
         yield manager
 
 
 async def correct(manager: FeedbackManager, *run_ids: str) -> None:
     for run_id in run_ids:
-        await manager.for_tenant(TENANT).submit(
+        event = await manager.for_tenant(TENANT).submit(
             source="human",
             category="correction",
             target=FeedbackTarget(type=FeedbackTargetType.RUN, id=run_id),
             payload={"correction": LESSON},
             execution_context=ExecutionContext(agent_id=AGENT, run_id=run_id),
             idempotency_key=f"correction:{run_id}",
+        )
+        assert manager.learning_engine is not None
+        verifier = manager.learning_engine.assessment_verifier
+        assert verifier is not None
+        scope = PayloadScope.model_validate(SCOPE.model_dump())
+        experience = await verifier.experiences.create(
+            ExecutionExperience(scope=scope, execution_id=run_id)
+        )
+        support = await verifier.experiences.create(
+            ExecutionExperience(scope=scope, execution_id=f"{run_id}-independent")
+        )
+        evidence = AssessmentEvidence(
+            evidence_id="independent",
+            scope=scope,
+            experience_id=support.experience_id,
+            experience_version=support.version,
+        )
+        finding = await ConservativeFeedbackCritic().assess(
+            event, experience, supporting=(evidence,)
+        )
+        # This synthetic fixture stands in for independent human assessment.
+        assessment = await verifier.assessments.create(
+            finding.model_copy(update={"status": AssessmentStatus.SUPPORTED})
+        )
+        await verifier.assessments.decide(
+            LearningDecision(
+                scope=scope,
+                assessment_id=assessment.assessment_id,
+                assessment_version=assessment.version,
+                accepted=True,
+                reviewer="test-reviewer",
+            )
+        )
+        assert manager.background_learner is not None
+        await manager.background_learner.enqueue_assessment(
+            event.feedback_id, assessment.assessment_id, assessment_version=assessment.version
         )
     assert manager.background_learner is not None
     await manager.background_learner.drain()

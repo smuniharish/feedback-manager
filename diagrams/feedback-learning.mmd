@@ -1,21 +1,12 @@
 flowchart TD
-    Host["Authenticated host / agent framework"] --> Manager["FeedbackManager: validate, redact, correlate"]
-    Manager --> Feedback["FeedbackStore: original records"]
-    Feedback --> Changes["Optional atomic change journal"]
-    Manager --> Jobs["LearningJobStore: enqueue, lease, retry, dead-letter"]
-    Changes --> Recovery["Replay and checkpoint after enqueue"]
-    Recovery --> Jobs
-    Jobs --> Signals["Scoped signal extraction"]
-    Signals --> Patterns["Patterns, evidence and confidence"]
-    Patterns --> Artifacts["ArtifactRepository: candidate versions"]
-    Artifacts --> Review["Human review and validation policy"]
-    Review --> Active["Explicit activation"]
-    Active --> Indexer["Idempotent projection indexing / reindex"]
-    Indexer --> Vector["LanceDB / VectorStore"]
-    Indexer --> Graph["LadybugDB / GraphStore"]
-    Vector --> Retrieval["Bounded hybrid retrieval"]
-    Graph --> Retrieval
-    Artifacts --> Retrieval
-    Retrieval --> Checks["Recheck authority, review, version and scope"]
+    Host["Your application or agent framework"] --> Manager["FeedbackManager: records and manages feedback"]
+    Manager --> Feedback["Feedback store: authoritative record"]
+    Host --> Experiences["Scoped execution experiences"]
+    Feedback --> Learning["Background learning"]
+    Experiences --> Learning
+    Learning --> Artifacts["Learned artifacts: candidates"]
+    Artifacts --> Review["Human review and explicit activation"]
+    Review --> Retrieval["Retrieval index: rebuildable hints"]
+    Retrieval --> Checks["Current authority, review and scope checks"]
     Checks --> Context["Untrusted learned context"]
     Context --> Host

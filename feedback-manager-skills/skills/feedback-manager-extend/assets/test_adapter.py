@@ -17,10 +17,11 @@ from feedback_manager import (
     FeedbackTarget,
     FeedbackTargetType,
 )
-from feedback_manager.learning import ArtifactScope
+from feedback_manager.learning import ArtifactScope, ExecutionOutcome
 from feedback_manager.learning.engine import LearningEngine
+from feedback_manager.learning.signals import LearningSignalExtractor
 from feedback_manager.retrieval import RetrievalRequest
-from feedback_manager.storage.artifacts import ArtifactQuery, InMemoryArtifactRepository
+from feedback_manager.storage.artifacts import InMemoryArtifactRepository
 
 from adapter_template import Pause, Resume, RunInfo, ToyAdapter  # Replace.
 
@@ -70,13 +71,16 @@ async def test_no_learned_context_renders_nothing() -> None:
     engine = LearningEngine(InMemoryArtifactRepository())
     scope = ArtifactScope(tenant_id="tenant", agent_id="planner")
 
-    message = (
-        await ToyAdapter()
-        .context_injector(engine)
-        .build(RetrievalRequest(scope=scope, agent_id="planner", task="plan the trip"))
-    )
+    try:
+        message = (
+            await ToyAdapter()
+            .context_injector(engine)
+            .build(RetrievalRequest(scope=scope, agent_id="planner", task="plan the trip"))
+        )
 
-    assert message is None
+        assert message is None
+    finally:
+        await engine.aclose()
 
 
 @pytest.mark.asyncio
@@ -84,29 +88,35 @@ async def test_reviewed_lessons_render_as_delimited_reference_data() -> None:
     repository = InMemoryArtifactRepository()
     engine = LearningEngine(repository)
     scope = ArtifactScope(tenant_id="tenant", agent_id="planner")
-    async with FeedbackManager(learning_engine=engine) as manager:
-        for run_id in ("run-1", "run-2"):
-            await manager.for_tenant("tenant").submit(
-                source="human",
-                category="correction",
-                target=FeedbackTarget(type=FeedbackTargetType.RUN, id=run_id),
-                payload={"correction": "Check opening hours before booking."},
-                execution_context=ExecutionContext(agent_id="planner", run_id=run_id),
+    extractor = LearningSignalExtractor()
+    result = await engine.process(
+        [
+            extractor.extract_outcome(
+                ExecutionOutcome(
+                    execution_id=run_id,
+                    scope=scope,
+                    success=True,
+                    description="Check opening hours before booking.",
+                )
             )
-        assert manager.background_learner is not None
-        await manager.background_learner.drain()
-    (artifact,) = (await repository.query(ArtifactQuery(scope=scope))).artifacts
+            for run_id in ("run-1", "run-2")
+        ]
+    )
+    (artifact,) = result.artifacts
     await engine.request_review(scope, artifact.artifact_id)
     await engine.review(scope, artifact.artifact_id, reviewer="reviewer", approved=True)
     await engine.activate(scope, artifact.artifact_id)
 
-    message = (
-        await ToyAdapter()
-        .context_injector(engine)
-        .build(RetrievalRequest(scope=scope, agent_id="planner", task="book opening hours"))
-    )
+    try:
+        message = (
+            await ToyAdapter()
+            .context_injector(engine)
+            .build(RetrievalRequest(scope=scope, agent_id="planner", task="book opening hours"))
+        )
 
-    assert message is not None
-    assert message["role"] == "system"
-    assert "<learned_context>" in message["content"]
-    assert "Check opening hours before booking." in message["content"]
+        assert message is not None
+        assert message["role"] == "system"
+        assert "<learned_context>" in message["content"]
+        assert "Check opening hours before booking." in message["content"]
+    finally:
+        await engine.aclose()

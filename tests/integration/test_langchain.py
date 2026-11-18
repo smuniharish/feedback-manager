@@ -566,4 +566,6 @@ class TestCaptureToolFeedback:
                 raise ValueError("bad input")
 
         assert any(FeedbackStoreError.__name__ in note for note in raised.value.__notes__)
+        assert all("db down" not in note for note in raised.value.__notes__)
         assert "tool failure not recorded" in caplog.text
+        assert "db down" not in caplog.text

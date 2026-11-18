@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from abc import ABC, abstractmethod
 from enum import StrEnum
 from typing import TYPE_CHECKING
 from uuid import NAMESPACE_URL, uuid5
@@ -67,7 +68,19 @@ def _signal_id(scope: ArtifactScope, source_id: str, kind: SignalType) -> str:
     )
 
 
-class LearningSignalExtractor:
+class SignalExtractor(ABC):
+    """Application-replaceable extraction of feedback and outcome signals."""
+
+    @abstractmethod
+    def extract(self, feedback: FeedbackEvent, *, scope: ArtifactScope) -> SignalExtraction:
+        """Extract a provisional feedback signal."""
+
+    @abstractmethod
+    def extract_outcome(self, outcome: ExecutionOutcome) -> LearningSignal:
+        """Extract an explicitly reported outcome signal."""
+
+
+class LearningSignalExtractor(SignalExtractor):
     """Extract only explicit feedback and outcomes, without interpreting instructions.
 
     Feedback with no execution ID receives one shared ``unverified`` independence
@@ -76,10 +89,11 @@ class LearningSignalExtractor:
     """
 
     def extract(self, feedback: FeedbackEvent, *, scope: ArtifactScope) -> SignalExtraction:
-        """Extract a signal, or return an explanation of why the event was ignored.
+        """Extract a provisional signal, or explain why the event was ignored.
 
         ``scope`` must be established by the host. A tenant already recorded on
         the feedback cannot be overridden by a different scope.
+        Feedback signals require a separately accepted assessment before learning.
         """
         context = feedback.execution_context
         if context is not None and context.tenant_id not in (None, scope.tenant_id):
@@ -202,4 +216,9 @@ class LearningSignalExtractor:
         )
 
 
-__all__ = ["ExtractionDisposition", "LearningSignalExtractor", "SignalExtraction"]
+__all__ = [
+    "ExtractionDisposition",
+    "LearningSignalExtractor",
+    "SignalExtraction",
+    "SignalExtractor",
+]

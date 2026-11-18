@@ -90,15 +90,13 @@ Releases follow [semantic versioning](https://semver.org/). To publish one:
    `feedback-manager-skills/skills/feedback-manager/SKILL.md`, then run
    `uv lock`. A test fails until the two versions match.
 2. Move the changelog entries under a heading with the version and date.
-3. Merge to `master`, then publish a GitHub release whose tag is the version
-   with a `v` prefix, such as `v0.1.1`.
+3. Build the distributions locally with `uv build` and check them with
+   `uvx twine check --strict dist/*`.
+4. Publish the verified distributions to PyPI manually, then publish the
+   matching GitHub release with a `v`-prefixed tag, such as `v0.2.0`.
 
-The release workflow checks that the tag matches the version, builds and checks
-the distributions, and publishes them to PyPI with trusted publishing, so no
-API token is stored in the repository. Before the first release from the
-workflow, a maintainer adds it as a trusted publisher in the PyPI project
-settings (repository `smuniharish/feedback-manager`, workflow `release.yml`,
-environment `pypi`).
+Releases are performed manually by a maintainer. GitHub Actions does not
+publish to PyPI, and PyPI Trusted Publishing is not configured.
 
 ## Security reports
 

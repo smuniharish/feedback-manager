@@ -1,6 +1,6 @@
 # feedback-manager API reference
 
-Signatures for `feedback-manager` 0.1.x. Everything not listed here is
+Signatures for `feedback-manager` 0.2.x. Everything not listed here is
 internal. All I/O methods are coroutines. Every extension point is an abstract
 base class: subclass it, and the manager checks the type when it is built.
 

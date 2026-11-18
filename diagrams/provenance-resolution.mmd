@@ -1,9 +1,6 @@
 flowchart LR
-    feedback(["New feedback with<br/>execution_context"]) --> during{"Submitted during<br/>the run it is about?"}
-    during -- yes --> live["Active run: execution so far,<br/>latest decision and its evidence"]
-    during -- no --> stored{"run_id names<br/>a stored run?"}
-    stored -- yes --> latest["Latest stored execution<br/>(no decisions or evidence)"]
+    feedback(["Feedback with execution_context"]) --> during{"Submitted during<br/>the run it describes?"}
+    during -- yes --> live["Active run provenance"]
+    during -- no --> stored{"Stored run<br/>available?"}
+    stored -- yes --> latest["Stored run provenance"]
     stored -- no --> none(["No provenance"])
-    live --> match["Match the node,<br/>tool call, and interrupt"]
-    latest --> match
-    match --> reference(["FeedbackProvenanceReference"])

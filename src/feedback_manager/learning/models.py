@@ -106,6 +106,8 @@ class Evidence(BaseModel):
 
     evidence_id: UUID = Field(default_factory=uuid4)
     feedback_id: UUID | None = None
+    assessment_id: UUID | None = None
+    assessment_version: int | None = Field(default=None, ge=1, strict=True)
     execution_id: Identifier | None = None
     source: Identifier
     independence_key: Identifier
@@ -121,6 +123,10 @@ class Evidence(BaseModel):
     def _validate_reference(self) -> Evidence:
         if self.feedback_id is None and self.execution_id is None:
             raise ValueError("evidence requires a feedback_id or execution_id")
+        if (self.assessment_id is None) != (self.assessment_version is None):
+            raise ValueError("assessment ID and version must be supplied together")
+        if self.assessment_id is not None and self.feedback_id is None:
+            raise ValueError("assessment evidence requires a feedback_id")
         return self
 
 
@@ -224,6 +230,10 @@ class LearnedArtifact(BaseModel):
                 "embedding_space",
             },
         )
+        for item in body["evidence"]:
+            if item["assessment_id"] is None:
+                del item["assessment_id"]
+                del item["assessment_version"]
         encoded = json.dumps(
             body, sort_keys=True, separators=(",", ":"), ensure_ascii=True, allow_nan=False
         ).encode("utf-8")

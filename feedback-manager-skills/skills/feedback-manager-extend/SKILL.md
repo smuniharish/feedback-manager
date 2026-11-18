@@ -13,10 +13,10 @@ description: >-
   or to configure learning and retrieval (use feedback-manager-learning).
 license: Apache-2.0
 compatibility: >-
-  Python 3.12 or newer with feedback-manager 0.1.x. The templates need no
+  Python 3.12 or newer with feedback-manager 0.2.x. The templates need no
   agent framework or database; scripts/check_component.py runs offline.
 metadata:
-  version: "0.1.2"
+  version: "0.2.0"
   documentation: "https://feedback-manager.readthedocs.io/en/latest/how-to/customize-components/"
 ---
 

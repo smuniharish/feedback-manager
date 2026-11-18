@@ -6,6 +6,7 @@
 __pycache__
 site
 dist
+models
 *.db
 *.db-*
 *.lbug

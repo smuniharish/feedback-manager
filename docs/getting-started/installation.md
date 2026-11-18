@@ -1,6 +1,6 @@
 # Installation
 
-feedback-manager requires Python 3.12 or later.
+feedback-manager supports Python 3.12–3.14.
 
 === "pip"
 
@@ -27,8 +27,10 @@ The core is framework-agnostic. Install an extra only for the integration you us
 | Extra | Installs | Use it for |
 |---|---|---|
 | `langchain` | `langchain-core`, `langgraph`, `agxai[langgraph]` | The [LangChain and LangGraph adapter](../api/integrations.md#langchain-and-langgraph). LangChain and LangGraph are one framework family, so one extra covers both. |
-| `lancedb` | `lancedb` | Storing learned artifacts and embeddings in LanceDB. |
-| `ladybugdb` | `ladybug` | Storing artifact relationships in the LadybugDB graph database. |
+| `lancedb` | `lancedb` | Legacy LanceDB compatibility adapter; not required by default RetrievalLoom search. |
+| `ladybugdb` | `ladybug` | Legacy LadybugDB compatibility adapter; not required by default RetrievalLoom search. |
+| `otel` | OpenTelemetry API and SDK | Export feedback and operation telemetry through the host's configured providers. |
+| `postgres` | `psycopg[binary,pool]`, `psycopg-pool` | Multi-process PostgreSQL [experience, assessment and payload stores](../how-to/background-learning.md#postgresql-stores). |
 | `all` | All of the above | Trying everything. |
 
 ```bash
@@ -42,8 +44,9 @@ Custom Python agents need no extra: use
 
 | Package | Version | Why |
 |---|---|---|
-| [`agxai`](https://pypi.org/project/agxai/) | `>=1.0.2,<2` | Provenance records that feedback can link to. |
+| [`agxai`](https://pypi.org/project/agxai/) | `>=1.0.3,<2` | Provenance records that feedback can link to. |
 | [`pydantic`](https://pypi.org/project/pydantic/) | `>=2.14.3,<3` | Validated, immutable domain models. |
+| [`retrievalloom`](https://pypi.org/project/retrievalloom/) | `>=0.2.0,<0.3` | The package's retrieval engine; installed automatically with the core package. |
 | [`structlog`](https://pypi.org/project/structlog/) | `>=26.1.0,<27` | Structured log records for the default observability sink. |
 
 Importing `feedback_manager` loads no agent framework. An adapter imports its
@@ -57,7 +60,7 @@ python -c "import feedback_manager; print(feedback_manager.__version__)"
 ```
 
 ```text
-0.1.2
+0.2.0
 ```
 
 ## Running the examples

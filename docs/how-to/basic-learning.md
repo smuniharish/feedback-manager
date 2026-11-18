@@ -3,12 +3,13 @@
 The learning foundation can extract explicit signals, group matching feedback,
 create candidate artifacts, record a separate review, and retrieve active
 artifacts using structured filters. This page demonstrates explicit, manual
-processing. Managers also enable [automatic background learning](background-learning.md)
-by default; pass `learning=False` when you only want the manual workflow.
+processing. The background worker is enabled by default, but feedback is not
+learned until a separately accepted assessment is explicitly enqueued. Pass
+`learning=False` when you only want the manual workflow.
 
 ## Run the example
 
-Prerequisites: Python 3.12 or newer and an installed checkout of this project.
+Prerequisites: Python 3.12–3.14 and an installed checkout of this project.
 From the repository root:
 
 ```bash
@@ -42,7 +43,9 @@ tenant that conflicts with the feedback's execution context, but missing tenant
 information must be resolved by the host rather than guessed.
 
 Feedback and retrieved content are untrusted data, not privileged instructions.
-Learning approval is separate from feedback approval. By default, publication
+An independent assessment and separate learning acceptance are required before
+feedback can produce a candidate. Assessment and artifact approval are separate
+from feedback approval. By default, publication
 requires two independent execution sources, sufficient confidence, and a
 manual decision bound to the reviewed content and policy version. The host
 must call `request_review`, `review`, and `activate` explicitly.
@@ -58,8 +61,9 @@ without erasing its provenance. That method does not install a durable
 tombstone or subscribe to feedback lifecycle updates; callers must serialize
 and coordinate lifecycle changes themselves.
 
-Structured retrieval applies tenant, namespace and applicability filters,
-checks the current validation policy, and bounds the rendered context. Optional
-[LanceDB/LadybugDB adapters and hybrid retrieval](hybrid-retrieval.md) add vector
-and graph projections. The [background workflow](background-learning.md) adds
-retry, dead-letter replay, lifecycle synchronization and opt-in durable recovery.
+The default `LearningEngine` uses RetrievalLoom's offline indexes and checks
+tenant, namespace, applicability, assessment, review policy and current artifact
+versions before returning bounded context. Applications that need embeddings,
+graph traversal or durable retrieval storage can supply RetrievalLoom's native
+components. The [background workflow](background-learning.md) adds retry,
+dead-letter replay, lifecycle synchronization and opt-in durable recovery.

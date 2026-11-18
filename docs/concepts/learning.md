@@ -11,8 +11,7 @@ agent runtime, authorization engine or fine-tuning service.
 |---|---|
 | Original feedback and lifecycle | `FeedbackStore` |
 | Learned content, evidence, reviews and immutable versions | `ArtifactRepository` |
-| Similarity search | Rebuildable `VectorStore` projections |
-| Relationships and graph expansion | Rebuildable `GraphStore` projections |
+| Similarity search and evidence ranking | RetrievalLoom engine and its rebuildable indexes |
 | Deferred learning and replay checkpoints | `LearningJobStore` |
 | Execution provenance | Host records, optionally linked through agxai |
 
@@ -25,6 +24,8 @@ processing the same signal again does not add duplicate evidence.
 a small job, not embedding calls or analysis. The worker starts lazily when scoped
 feedback arrives. Use `async with FeedbackManager(...)` or call `aclose()` before
 closing stores. Pass `learning=False` to retain feedback-only operation.
+The manager closes the RetrievalLoom engine it creates; a standalone
+`LearningEngine` should be closed with `await engine.aclose()`.
 
 The default resolver uses `execution_context.tenant_id` and, when present,
 `agent_id`. Missing tenant information is skipped, counted and logged; it never
@@ -36,6 +37,18 @@ and failure outcomes, and human decisions. Exact normalized patterns aggregate
 incrementally; token similarity can suggest related groups without silently
 merging them. Approval/rejection signals are returned as unsupported by the
 default artifact learners rather than being misrepresented as new knowledge.
+
+`LearningEngine.synthesize(signals)` combines related patterns into one review
+candidate when they share one scope and signal kind; synthesis never widens
+applicability. Relatedness comes from `PatternMiner.similar` or from
+`similarities` you supply, for example from RetrievalLoom. Each pattern's
+support is the number of distinct independence keys among its valid,
+non-contradicting evidence. Contradicting evidence is retained and reported but
+never counted as support. The default `DeterministicSynthesizer` restates
+supported statements verbatim, ordered by support. `ModelSynthesizer` wraps your
+`SynthesisModel` with a timeout. Every draft must cite only supported patterns
+from its cluster, or it is rejected. Synthesized text is untrusted candidate
+content that needs the same review and activation as any other candidate.
 
 | Signal | Default artifact |
 |---|---|
@@ -65,11 +78,18 @@ by replaying an older signal.
 
 ## Runtime consumption
 
-Choose structured, vector, graph or hybrid retrieval explicitly. Runtime adapters
-consume the same `retrieve(RetrievalRequest)` contract. The custom adapter renders
-learned guidance as delimited reference data; the LangChain family can render it
-as framework messages. Neither changes the host's permissions or task rules.
+The default `LearningEngine` delegates learned-artifact discovery to a
+manager-owned RetrievalLoom engine. Its offline indexes need no model download
+or external vector/graph service. Each hit is rechecked against the current
+artifact repository, assessment, review policy, version and authenticated scope
+before an adapter renders it as untrusted context.
+
+Applications that need embeddings, graph traversal or durable RetrievalLoom
+storage configure RetrievalLoom's native components and resources, then inject
+the caller-owned engine. The older `ArtifactIndexer`, `VectorRetriever`,
+`GraphRetriever` and `HybridRetriever` APIs remain compatibility facades; new
+integrations should use `RetrievalLoomRetriever`.
 
 See [background learning](../how-to/background-learning.md),
-[hybrid retrieval](../how-to/hybrid-retrieval.md) and
+[RetrievalLoom retrieval](../how-to/hybrid-retrieval.md) and
 [API reference](../api/learning.md).

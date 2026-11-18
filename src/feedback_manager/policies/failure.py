@@ -140,7 +140,6 @@ class FailurePolicy:
                 stage=stage.value,
                 feedback_id=None if feedback_id is None else str(feedback_id),
                 error_type=type(exc).__name__,
-                exc_info=exc,
             )
             return None
 

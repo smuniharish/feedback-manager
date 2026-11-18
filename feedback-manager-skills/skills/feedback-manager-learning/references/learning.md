@@ -14,7 +14,8 @@
 
 `LearningSignalExtractor.extract(feedback, *, scope)` turns one
 `FeedbackEvent` into a `LearningSignal`, or returns a `reason` when the feedback
-has nothing to learn. Signal types: `correction`, `approval`, `rejection`,
+has nothing to learn. Feedback signals are provisional until a separate
+assessment is accepted and verified. Signal types: `correction`, `approval`, `rejection`,
 `failure`, `success`, `improvement`, `constraint`.
 
 Write the lesson into the payload under a key the extractor reads, such as
@@ -82,16 +83,22 @@ agent_type=..., task_type=..., tool=..., workflow=...)`. Visibility is
 The background learner resolves a scope for each piece of feedback with
 `learning_scope_resolver`: a `ScopeResolver` subclass or a function
 `(FeedbackEvent) -> ArtifactScope | None`. The default,
-`ContextScopeResolver`, uses the tenant from `for_tenant` or the execution
-context, and the agent from `execution_context.agent_id`. Returning `None`
-skips the feedback.
+`ContextScopeResolver`, requires a host-supplied namespace and uses the tenant
+from `for_tenant` or the execution context and the agent from
+`execution_context.agent_id`. Returning `None` quarantines the feedback.
 
 ```python
 def scope_for(feedback):
-    tenant = feedback.execution_context.tenant_id
-    if tenant is None:
+    context = feedback.execution_context
+    if context is None or context.tenant_id is None:
         return None
-    return ArtifactScope(tenant_id=tenant, agent_type="support-agent", visibility="agent_type")
+    # The host must authorize this shared scope and application mapping.
+    return ArtifactScope(
+        tenant_id=context.tenant_id,
+        namespace="my-app",
+        agent_type="support-agent",
+        visibility="agent_type",
+    )
 
 
 manager = FeedbackManager(learning_engine=engine, learning_scope_resolver=scope_for)
@@ -114,7 +121,15 @@ manager = FeedbackManager(learning=False)
 extractor = LearningSignalExtractor()
 extracted = extractor.extract(event, scope=scope)
 if extracted.signal is not None:
-    result = await engine.process([extracted.signal])
+    # `assessment` is an independently accepted current assessment.
+    evidence = extracted.signal.evidence.model_copy(
+        update={
+            "assessment_id": assessment.assessment_id,
+            "assessment_version": assessment.version,
+        }
+    )
+    signal = extracted.signal.model_copy(update={"evidence": evidence})
+    result = await engine.process([signal])  # engine has an AssessmentVerifier
     candidate = result.artifacts[0]
 ```
 

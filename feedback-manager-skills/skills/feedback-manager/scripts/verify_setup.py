@@ -24,8 +24,9 @@ if TYPE_CHECKING:
     from langchain_core.runnables import RunnableConfig
 
 REQUIRED = {
-    "agxai": ((1, 0, 2), (2,)),
+    "agxai": ((1, 0, 3), (2,)),
     "pydantic": ((2, 14, 3), (3,)),
+    "retrievalloom": ((0, 2, 0), (0, 3)),
     "structlog": ((26, 1, 0), (27,)),
 }
 LANGCHAIN = {
@@ -74,15 +75,15 @@ def dotted(version: tuple[int, ...]) -> str:
 
 def check_environment(*, langchain: bool) -> bool:
     report(
-        sys.version_info >= (3, 12),
-        f"Python {platform.python_version()} (3.12 or newer required)",
+        (3, 12) <= sys.version_info[:2] < (3, 15),
+        f"Python {platform.python_version()} (3.12 through 3.14 required)",
     )
     version = installed("feedback-manager")
     if version is None:
         return report(False, "feedback-manager is not installed: pip install feedback-manager")
     report(
-        release(version)[:2] == (0, 1),
-        f"feedback-manager {version} (0.1.x expected by this skill)",
+        release(version)[:2] == (0, 2),
+        f"feedback-manager {version} (0.2.x expected by this skill)",
     )
     required = REQUIRED | LANGCHAIN if langchain else REQUIRED
     for distribution, (lowest, below) in required.items():

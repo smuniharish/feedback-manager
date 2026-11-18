@@ -82,8 +82,8 @@ Install the skills so your coding agent knows how to:
     ---
 
     Makes agents improve from reviewed feedback. Covers the background
-    learner, review and activation, scopes, hybrid retrieval over LanceDB and
-    LadybugDB, embeddings, and injecting lessons.
+    learner, review and activation, scopes, RetrievalLoom-backed discovery,
+    native component customization, and injecting lessons.
 
     Includes an offline learning check and a learning-flow test template.
 

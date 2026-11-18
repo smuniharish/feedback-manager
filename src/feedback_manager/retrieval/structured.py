@@ -3,9 +3,14 @@
 from __future__ import annotations
 
 import re
+import warnings
 from typing import TYPE_CHECKING
 
-from feedback_manager.learning.errors import LearningScopeError, UnsupportedCapabilityError
+from feedback_manager.learning.errors import (
+    ArtifactNotFoundError,
+    LearningScopeError,
+    UnsupportedCapabilityError,
+)
 from feedback_manager.learning.models import ArtifactStatus
 from feedback_manager.learning.scope import is_applicable
 from feedback_manager.learning.validation import DefaultLearningValidationPolicy
@@ -14,6 +19,8 @@ from feedback_manager.retrieval.models import RetrievalRequest, RetrievalResult,
 from feedback_manager.storage.artifacts.base import ArtifactQuery
 
 if TYPE_CHECKING:
+    from feedback_manager.learning.assessment_verification import AssessmentVerifier
+    from feedback_manager.learning.models import LearnedArtifact
     from feedback_manager.learning.validation import LearningValidationPolicy
     from feedback_manager.storage.artifacts.base import ArtifactRepository
 
@@ -23,23 +30,55 @@ def _tokens(text: str) -> set[str]:
 
 
 class StructuredRetriever(LearnedArtifactRetriever):
-    """Retrieve active, reviewed artifacts using scoped structured filters."""
+    """Retrieve active, reviewed artifacts using scoped structured filters.
+
+    ``current_and_assessed`` is the authoritative revalidation guard used by every
+    retriever. Direct ``retrieve`` search is deprecated in favor of
+    ``RetrievalLoomRetriever``.
+    """
 
     def __init__(
         self,
         repository: ArtifactRepository,
         *,
         validation_policy: LearningValidationPolicy | None = None,
+        assessment_verifier: AssessmentVerifier | None = None,
     ) -> None:
         self.repository = repository
+        self.assessment_verifier = assessment_verifier
         self.validation_policy = (
             validation_policy
             if validation_policy is not None
             else DefaultLearningValidationPolicy()
         )
 
+    async def current_and_assessed(self, artifact: LearnedArtifact) -> bool:
+        """Recheck feedback assessments and the authoritative artifact snapshot."""
+        if any(item.valid and item.feedback_id is not None for item in artifact.evidence):
+            if self.assessment_verifier is None:
+                return False
+            result = await self.assessment_verifier.verify_artifact(artifact)
+            if not result.eligible:
+                return False
+        try:
+            current = await self.repository.get(artifact.scope, artifact.artifact_id)
+        except ArtifactNotFoundError:
+            return False
+        return current == artifact
+
     async def retrieve(self, request: RetrievalRequest) -> RetrievalResult:
-        """Return applicable artifacts with evidence-aware, explainable scores."""
+        """Return applicable artifacts with evidence-aware, explainable scores.
+
+        Deprecated: use ``RetrievalLoomRetriever`` for artifact discovery.
+        """
+        warnings.warn(
+            "StructuredRetriever.retrieve is deprecated; use RetrievalLoomRetriever",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return await self._retrieve(request)
+
+    async def _retrieve(self, request: RetrievalRequest) -> RetrievalResult:
         if request.graph_depth:
             raise UnsupportedCapabilityError("structured retrieval cannot traverse a graph")
         candidates: list[RetrievedArtifact] = []
@@ -88,6 +127,8 @@ class StructuredRetriever(LearnedArtifactRetriever):
                     raise LearningScopeError("artifact repository returned an unrequested result")
                 decision = self.validation_policy.evaluate(artifact)
                 if not decision.eligible or decision.confidence.confidence < request.min_confidence:
+                    continue
+                if not await self.current_and_assessed(artifact):
                     continue
                 tokens = _tokens(f"{artifact.title} {artifact.description} {artifact.content}")
                 relevance = len(query_tokens & tokens) / len(query_tokens) if query_tokens else 0.0

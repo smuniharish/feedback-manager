@@ -108,13 +108,11 @@ identifiers, never by formatting values into statements. The credentials in
 
 ## Supply chain
 
-Dependencies are declared with bounded version ranges, and releases are built
-and published by GitHub Actions using PyPI Trusted Publishing, without
-long-lived API tokens. Every release has a build provenance attestation and
-a CycloneDX software bill of materials (SBOM) attached to its GitHub
-release. CodeQL scans the Python code and the GitHub Actions workflows.
-Check a downloaded file with
-`gh attestation verify <file> --repo smuniharish/feedback-manager`.
+Dependencies are declared with bounded version ranges. A maintainer builds,
+checks and publishes each release manually; GitHub Actions does not publish to
+PyPI, and PyPI Trusted Publishing is not configured. Do not assume releases
+have automated build provenance attestations or an attached software bill of
+materials. CodeQL scans the Python code and GitHub Actions workflows.
 
 ## Reporting a vulnerability
 

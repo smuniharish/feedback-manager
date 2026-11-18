@@ -16,6 +16,15 @@ flowchart TB
     handlers["Router and handlers"]
     push["Subscribers and streams"]
     sink["Observability sink"]
+    experiences[("Scoped experience archive")]
+    assessment["Independent assessment<br/>and separate acceptance"]
+    jobs[("LearningJobStore")]
+    learner["BackgroundLearner"]
+    artifacts[("ArtifactRepository<br/>candidate versions")]
+    review["Human review<br/>and explicit activation"]
+    retrieval["RetrievalLoom<br/>offline indexes by default"]
+    recheck["Revalidate current artifact,<br/>assessment and scope"]
+    context["Untrusted learned context"]
 
     code -- "submit · lifecycle · query" --> manager
     runnable -- "failures" --> callbacks
@@ -27,3 +36,16 @@ flowchart TB
     manager --> handlers
     manager --> push
     manager -.-> sink
+    code --> experiences
+    store --> assessment
+    experiences --> assessment
+    assessment --> jobs
+    jobs --> learner
+    learner --> artifacts
+    artifacts --> review
+    review --> retrieval
+    artifacts --> retrieval
+    retrieval --> recheck
+    artifacts --> recheck
+    recheck --> context
+    context --> runnable

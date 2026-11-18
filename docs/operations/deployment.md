@@ -10,7 +10,7 @@ real tenants.
 From the repository root:
 
 ```bash
-podman build -f deploy/Containerfile -t localhost/feedback-manager-learning:0.1.2 .
+podman build -f deploy/Containerfile -t localhost/feedback-manager-learning:0.2.0 .
 podman compose -f deploy/compose.yaml up --build --abort-on-container-exit --exit-code-from learning-smoke
 ```
 
@@ -40,8 +40,9 @@ kubectl logs job/feedback-manager-learning-smoke
 The smoke manifest uses `emptyDir` intentionally: it tests execution, not cluster
 durability. For persisted state, replace the `state` volume with an
 application-managed `ReadWriteOnce` PVC on a filesystem suitable for SQLite WAL
-and LadybugDB. Ensure UID/GID 10001 can write it. Set Job parallelism to one and do
-not schedule competing writer jobs against the same database.
+and, only if you separately configure the legacy LadybugDB adapter, its database.
+Ensure UID/GID 10001 can write it. Set Job parallelism to one and do not schedule
+competing writer jobs against the same database.
 
 No cluster context is assumed by the repository tests; a local manifest check is
 not evidence of an actual Kubernetes rollout. Configure image pull policy,
@@ -49,8 +50,9 @@ registry credentials, storage class, resource limits and backups for your cluste
 
 ## Scaling and health
 
-- Embedded LadybugDB is single-writer. Multiple writer pods on a shared volume are
-  not supported. Use an application-supplied network graph provider for that topology.
+- The legacy embedded LadybugDB adapter is single-writer. Multiple writer pods on
+  a shared volume are not supported. Use an application-supplied network graph
+  provider for that topology.
 - SQLite feedback/artifacts/jobs are a complete **single-host example**, not a
   distributed coordination system. Back up state consistently and retain change
   journals until their consumers have checkpointed them.

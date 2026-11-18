@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any, TypedDict
-from uuid import UUID, uuid4
+from uuid import uuid4
 
 import pytest
 from agxai import RUN_ID_METADATA_KEY, XAIRuntime
@@ -246,25 +246,22 @@ class TestHumanInTheLoopBridge:
         with pytest.raises(FeedbackNotFoundError):
             await bridge.resolve(uuid4(), response="yes")
 
-    async def test_prompts_become_json(self) -> None:
+    async def test_structured_json_prompts_are_preserved(self) -> None:
         bridge = LangGraphHumanInTheLoopBridge(FeedbackManager())
         pending = Interrupt(value="ignored", id="interrupt-1")
-        marker = object()
 
         overridden = await bridge.request(
             target=TARGET,
             interrupt=pending,
-            prompt={"id": UUID(int=1), "tags": {"a"}},
+            prompt={"id": "00000000-0000-0000-0000-000000000001", "tags": ["a"]},
             execution_context=ExecutionContext(interrupt_id="interrupt-1"),
             idempotency_key="approval-1",
         )
-        unserializable = await bridge.request(target=TARGET, prompt=marker)
 
         assert overridden.payload == {
             "prompt": {"id": "00000000-0000-0000-0000-000000000001", "tags": ["a"]}
         }
         assert overridden.idempotency_key == "approval-1"
-        assert unserializable.payload == {"prompt": str(marker)}
 
     async def test_resume_command_can_target_one_interrupt(self) -> None:
         graph = _approval_graph(nodes=("ask", "check"))

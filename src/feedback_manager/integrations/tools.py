@@ -90,13 +90,12 @@ async def capture_tool_feedback(
             except Exception as feedback_error:
                 error.add_note(
                     "feedback-manager could not record this failure: "
-                    f"{type(feedback_error).__name__}: {feedback_error}"
+                    f"{type(feedback_error).__name__}"
                 )
                 _logger.warning(
                     "tool failure not recorded",
                     tool_call_id=tool_call_id,
                     error_type=type(feedback_error).__name__,
-                    exc_info=feedback_error,
                 )
         raise
 

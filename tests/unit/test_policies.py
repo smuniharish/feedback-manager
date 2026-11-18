@@ -60,7 +60,7 @@ class TestFailurePolicy:
     async def test_success_returns_the_result(self) -> None:
         assert await FailurePolicy().run_stage(FeedbackStage.HANDLER, _succeed) == "ok"
 
-    async def test_best_effort_logs_with_traceback_and_returns_none(
+    async def test_best_effort_logs_without_exception_contents_and_returns_none(
         self, caplog: pytest.LogCaptureFixture
     ) -> None:
         seen: list[tuple[FeedbackStage, Exception]] = []
@@ -81,8 +81,9 @@ class TestFailurePolicy:
         (record,) = caplog.records
         assert "stage='subscriber'" in record.getMessage()
         assert str(feedback_id) in record.getMessage()
-        assert record.exc_info is not None
-        assert record.exc_info[0] is BoomError
+        assert "error_type='BoomError'" in record.getMessage()
+        assert record.exc_info is None
+        assert "exploded" not in caplog.text
 
     async def test_best_effort_without_feedback_id(self, caplog: pytest.LogCaptureFixture) -> None:
         with caplog.at_level(logging.WARNING, logger="feedback_manager.policies.failure"):

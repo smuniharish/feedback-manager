@@ -9,7 +9,8 @@ from feedback_manager import ExecutionContext, FeedbackManager
 from feedback_manager.core.events import FeedbackEvent
 from feedback_manager.core.status import FeedbackStatus
 from feedback_manager.core.targets import FeedbackTarget, FeedbackTargetType
-from feedback_manager.learning import ArtifactScope, LearningScopeError, ScopeVisibility
+from feedback_manager.learning import ArtifactScope, LearningScopeError
+from feedback_manager.learning.assessment_verification import AssessmentVerifier
 from feedback_manager.learning.engine import LearningEngine
 from feedback_manager.learning.jobs import (
     InMemoryLearningJobStore,
@@ -18,6 +19,9 @@ from feedback_manager.learning.jobs import (
 )
 from feedback_manager.learning.worker import BackgroundLearner, ContextScopeResolver, RetryPolicy
 from feedback_manager.storage.artifacts import InMemoryArtifactRepository
+from feedback_manager.storage.assessment import InMemoryAssessmentRepository
+from feedback_manager.storage.experience import InMemoryExperienceRepository
+from tests.learning.test_recovery import accepted_assessment
 
 SCOPE = ArtifactScope(tenant_id="tenant", agent_id="agent")
 TARGET = FeedbackTarget(type=FeedbackTargetType.RUN, id="run")
@@ -25,9 +29,16 @@ TARGET = FeedbackTarget(type=FeedbackTargetType.RUN, id="run")
 
 def worker(**kwargs):
     manager = FeedbackManager(learning=False)
-    engine = LearningEngine(InMemoryArtifactRepository())
+    verifier = AssessmentVerifier(
+        manager._store, InMemoryExperienceRepository(), InMemoryAssessmentRepository()
+    )
+    engine = LearningEngine(InMemoryArtifactRepository(), assessment_verifier=verifier)
     learner = BackgroundLearner(
-        manager, engine, InMemoryLearningJobStore(), scope_resolver=ContextScopeResolver(), **kwargs
+        manager,
+        engine,
+        InMemoryLearningJobStore(),
+        scope_resolver=ContextScopeResolver(namespace="default"),
+        **kwargs,
     )
     return manager, engine, learner
 
@@ -43,20 +54,47 @@ async def submit(manager, **kwargs):
     )
 
 
+async def enqueue_accepted(engine, learner, event):
+    verifier = engine.assessment_verifier
+    assert verifier is not None
+    assessment = await accepted_assessment(event, verifier.experiences, verifier.assessments)
+    return await learner.enqueue_assessment(
+        event.feedback_id, assessment.assessment_id, assessment_version=assessment.version
+    )
+
+
 def test_scope_resolution():
     event = FeedbackEvent(source="human", category="correction", target=TARGET)
     assert ContextScopeResolver()(event) is None
-    shared = ContextScopeResolver(default_tenant="default")(event)
-    assert shared is not None
-    assert shared.visibility is ScopeVisibility.TENANT
+    resolver = ContextScopeResolver(namespace="default")
+    assert ContextScopeResolver(default_tenant="default", namespace="default")(event) is None
     scoped = event.model_copy(
         update={"execution_context": ExecutionContext(tenant_id="tenant", agent_id="agent")}
     )
-    assert ContextScopeResolver()(scoped) == SCOPE
+    assert ContextScopeResolver()(scoped) is None
+    assert resolver(scoped) == SCOPE
+    app_scoped = scoped.model_copy(
+        update={
+            "execution_context": ExecutionContext(
+                tenant_id="tenant", agent_id="agent", application_id="default"
+            )
+        }
+    )
+    assert resolver(app_scoped) == SCOPE
     tenant = event.model_copy(update={"execution_context": ExecutionContext(tenant_id="tenant")})
-    resolved = ContextScopeResolver()(tenant)
-    assert resolved is not None
-    assert resolved.tenant_id == "tenant"
+    assert resolver(tenant) is None
+    missing_tenant = event.model_copy(update={"execution_context": ExecutionContext(agent_id="a")})
+    assert resolver(missing_tenant) is None
+    fallback = ContextScopeResolver(default_tenant="tenant", namespace="default")(missing_tenant)
+    assert fallback == ArtifactScope(tenant_id="tenant", agent_id="a")
+    mismatch = event.model_copy(
+        update={
+            "execution_context": ExecutionContext(
+                tenant_id="tenant", agent_id="agent", application_id="another-app"
+            )
+        }
+    )
+    assert resolver(mismatch) is None
 
 
 def test_retry_policy():
@@ -90,9 +128,12 @@ async def test_manual_drain_reconciliation_and_duplicate_jobs():
     assert learner.stats.duplicates == 1
     assert await learner.reconcile() == 0
     assert await learner.drain() == 1
-    assert learner.stats.learned == learner.stats.succeeded == 1
+    assert learner.stats.ignored == learner.stats.succeeded == 1
     stored = await learner.store.get(job.job_id)
     assert stored.status is LearningJobStatus.SUCCEEDED
+    await enqueue_accepted(engine, learner, event)
+    assert await learner.drain() == 1
+    assert learner.stats.learned == 1
     assert await learner.drain() == 0
     assert not learner.running
     await learner.stop()
@@ -124,7 +165,7 @@ async def test_skipped_and_ignored():
         source="human",
         category="rating",
         target=TARGET,
-        execution_context=ExecutionContext(tenant_id="tenant"),
+        execution_context=ExecutionContext(tenant_id="tenant", agent_id="agent"),
     )
     await learner.enqueue(event)
     await learner.drain()
@@ -136,8 +177,7 @@ async def test_retry_exhaustion_and_replay():
         retry=RetryPolicy(max_attempts=2, initial_delay=timedelta(0), jitter=0)
     )
     event = await submit(manager)
-    job = await learner.enqueue(event)
-    assert job is not None
+    job = await enqueue_accepted(engine, learner, event)
     with patch.object(engine, "process", side_effect=OSError("sensitive content")):
         assert await learner.drain() == 2
     assert learner.stats.retried == learner.stats.dead_lettered == 1
@@ -151,8 +191,7 @@ async def test_retry_exhaustion_and_replay():
 async def test_permanent_failure_and_missing_feedback():
     manager, engine, learner = worker()
     event = await submit(manager)
-    job = await learner.enqueue(event)
-    assert job is not None
+    job = await enqueue_accepted(engine, learner, event)
     with patch.object(engine, "process", side_effect=LearningScopeError("wrong scope")):
         assert await learner.drain() == 1
     assert (await learner.store.get(job.job_id)).status is LearningJobStatus.DEAD_LETTERED
@@ -196,8 +235,7 @@ async def test_worker_survives_queue_outage(caplog):
 async def test_interrupted_job_recovers_after_lease():
     manager, engine, learner = worker()
     event = await submit(manager)
-    job = await learner.enqueue(event)
-    assert job is not None
+    job = await enqueue_accepted(engine, learner, event)
     entered = asyncio.Event()
 
     async def blocked(_signals):
@@ -224,13 +262,16 @@ async def test_draining_is_bounded():
     assert await learner.drain(max_batches=0) == 0
 
 
-async def test_default_manager_learns_and_can_disable():
-    async with FeedbackManager() as manager:
+async def test_scoped_manager_quarantines_unassessed_feedback_and_can_disable():
+    async with FeedbackManager(
+        learning_scope_resolver=ContextScopeResolver(namespace="default")
+    ) as manager:
         event = await submit(manager)
         assert manager.background_learner is not None
         assert manager.learning_engine is not None
         await manager.background_learner.drain()
         assert manager.background_learner.stats.succeeded == 1
+        assert manager.background_learner.stats.learned == 0
         assert event.payload == {"correction": "Validate tool results"}
     assert not manager.background_learner.running
     await submit(manager)
@@ -241,9 +282,9 @@ async def test_default_manager_learns_and_can_disable():
     await disabled.aclose()
 
 
-async def test_default_manager_does_not_guess_tenant():
+async def test_default_manager_does_not_guess_scope():
     async with FeedbackManager() as manager:
-        await manager.submit(source="human", category="rating", target=TARGET)
+        await submit(manager)
         assert manager.background_learner is not None
         assert manager.background_learner.stats.skipped == 1
         assert not manager.background_learner.running
@@ -303,16 +344,106 @@ async def test_recovery_requires_source_and_bounded_valid_pages():
         await learner.stop()
 
 
+async def test_assessment_recovery_skips_ineligible_and_replays_safely():
+    from unittest.mock import AsyncMock
+
+    from feedback_manager.assessment import AssessmentStatus, LearningDecision
+    from feedback_manager.learning import LearningValidationError
+    from feedback_manager.storage.assessment import DecisionChangePage
+
+    manager, engine, learner = worker(batch_size=1)
+    verifier = engine.assessment_verifier
+    assert verifier is not None
+    assessments = verifier.assessments
+    with pytest.raises(ValueError, match="positive"):
+        await learner.recover_assessments(assessments, max_pages=0)
+    assert await learner.recover_assessments(assessments) == 0
+    event = await submit(manager)
+    accepted = await accepted_assessment(event, verifier.experiences, assessments)
+    rejected = accepted.model_copy(
+        update={"assessment_id": uuid4(), "status": AssessmentStatus.REVIEW_REQUIRED}
+    )
+    await assessments.create(rejected)
+    await assessments.decide(
+        LearningDecision(
+            scope=rejected.scope,
+            assessment_id=rejected.assessment_id,
+            assessment_version=1,
+            accepted=False,
+            reviewer="reviewer",
+        )
+    )
+    unknown = FeedbackEvent(
+        source="human", category="correction", target=TARGET, status=FeedbackStatus.RECEIVED
+    )
+    await accepted_assessment(unknown, verifier.experiences, assessments)
+    key = "default:assessment-decisions"
+    with (
+        patch.object(learner.store, "save_checkpoint", side_effect=OSError("interrupted")),
+        pytest.raises(OSError, match="interrupted"),
+    ):
+        await learner.recover_assessments(assessments)
+    assert await learner.store.checkpoint(key) is None
+    assert await learner.recover_assessments(assessments) == 0
+    assert learner.stats.duplicates == 1
+    assert learner.stats.skipped == 1
+    assert await learner.store.checkpoint(key) == "3"
+    assert await learner.drain() == 1
+    assert len((await engine.repository.query(_query())).artifacts) == 1
+    assert await learner.recover_assessments(assessments) == 0
+    await learner.store.save_checkpoint(key, "0")
+    assert await learner.recover_assessments(assessments, max_pages=1) == 0
+    assert await learner.store.checkpoint(key) == "1"
+    feed = AsyncMock()
+    for page in (
+        DecisionChangePage(changes=(), has_more=True),
+        DecisionChangePage(changes=(await assessments.decision_changes(limit=1)).changes),
+    ):
+        feed.decision_changes.return_value = page
+        with pytest.raises(LearningValidationError, match="invalid page"):
+            await learner.recover_assessments(feed)
+
+
+def _query():
+    from feedback_manager.storage.artifacts import ArtifactQuery
+
+    return ArtifactQuery(scope=SCOPE)
+
+
 async def test_stale_worker_failure_cannot_overwrite_new_claim():
     from feedback_manager.learning.jobs import LearningLeaseLostError
 
-    manager, engine, learner = worker()
+    manager, _engine, learner = worker()
     await learner.enqueue(await submit(manager))
     with (
-        patch.object(engine, "process", side_effect=LearningScopeError("invalid")),
+        patch.object(learner, "_learn", side_effect=LearningScopeError("invalid")),
         patch.object(learner.store, "dead_letter", side_effect=LearningLeaseLostError("stale")),
     ):
         await learner.run_once()
+    assert learner.stats.lease_lost == 1
+
+
+async def test_stale_worker_success_is_fenced_and_the_worker_keeps_draining():
+    from datetime import UTC, datetime
+
+    manager, _engine, learner = worker()
+    job = await learner.enqueue(await submit(manager))
+    assert job is not None
+    reclaimed = []
+
+    async def expire_and_reclaim(_job):
+        # Another worker reclaims the job after this worker's lease expires.
+        later = datetime.now(UTC) + learner.lease * 2
+        reclaimed.extend(await learner.store.claim(limit=1, lease=learner.lease, now=later))
+
+    with patch.object(learner, "_learn", side_effect=expire_and_reclaim):
+        assert await learner.drain() == 1
+    assert (learner.stats.lease_lost, learner.stats.succeeded) == (1, 0)
+    [current] = reclaimed
+    assert (await learner.store.get(job.job_id)).attempts == current.attempts == 2
+    assert (
+        await learner.store.complete(job.job_id, attempt=2)
+    ).status is LearningJobStatus.SUCCEEDED
 
 
 @pytest.mark.parametrize(

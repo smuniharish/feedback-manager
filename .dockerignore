@@ -4,6 +4,7 @@
 htmlcov
 site
 dist
+models
 __pycache__
 .pytest_cache
 .ruff_cache

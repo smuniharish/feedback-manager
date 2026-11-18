@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import warnings
 from typing import TYPE_CHECKING, Literal
 from uuid import UUID
 
@@ -24,6 +25,7 @@ from feedback_manager.storage.graph.base import GraphDirection
 if TYPE_CHECKING:
     from feedback_manager.core._types import JsonObject
     from feedback_manager.embeddings.base import EmbeddingProvider
+    from feedback_manager.learning.assessment_verification import AssessmentVerifier
     from feedback_manager.learning.models import LearnedArtifact
     from feedback_manager.learning.validation import LearningValidationPolicy
     from feedback_manager.observability.operations import OperationObserver
@@ -39,6 +41,9 @@ class HybridRetriever(LearnedArtifactRetriever):
     authoritative versions, review policy and applicability are checked again.
     Missing or obsolete projections are skipped, never returned as artifacts.
     Backend outages propagate rather than silently degrading the configured search.
+
+    Deprecated: this independent search path ignores RetrievalLoom. Use
+    ``RetrievalLoomRetriever`` and RetrievalLoom's native dense and graph channels.
     """
 
     def __init__(
@@ -49,9 +54,15 @@ class HybridRetriever(LearnedArtifactRetriever):
         *,
         graph: GraphStore | None = None,
         validation_policy: LearningValidationPolicy | None = None,
+        assessment_verifier: AssessmentVerifier | None = None,
         strategy: Literal["hybrid", "vector", "graph"] = "hybrid",
         observer: OperationObserver | None = None,
     ) -> None:
+        warnings.warn(
+            f"{type(self).__name__} is deprecated; use RetrievalLoomRetriever",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         if strategy not in ("hybrid", "vector", "graph"):
             raise ValueError("unknown retrieval strategy")
         if strategy in ("hybrid", "vector") and (vectors is None or provider is None):
@@ -64,7 +75,11 @@ class HybridRetriever(LearnedArtifactRetriever):
         self.provider = provider
         self.graph = graph
         self.observer = observer
-        self.structured = StructuredRetriever(repository, validation_policy=validation_policy)
+        self.structured = StructuredRetriever(
+            repository,
+            validation_policy=validation_policy,
+            assessment_verifier=assessment_verifier,
+        )
 
     async def _search(
         self, request: RetrievalRequest, query: list[float]
@@ -136,6 +151,8 @@ class HybridRetriever(LearnedArtifactRetriever):
         decision = self.structured.validation_policy.evaluate(artifact)
         if not decision.eligible or decision.confidence.confidence < request.min_confidence:
             return None
+        if not await self.structured.current_and_assessed(artifact):
+            return None
         return artifact
 
     async def retrieve(self, request: RetrievalRequest) -> RetrievalResult:
@@ -153,7 +170,7 @@ class HybridRetriever(LearnedArtifactRetriever):
             RetrievalResult(results=())
             if self.strategy == "vector"
             else (
-                await self.structured.retrieve(
+                await self.structured._retrieve(
                     request.model_copy(
                         update={
                             "graph_depth": 0,
@@ -232,6 +249,8 @@ class HybridRetriever(LearnedArtifactRetriever):
             items = {key: value for key, value in items.items() if key in graph_scores}
         candidates = []
         for identifier, artifact in items.items():
+            if not await self.structured.current_and_assessed(artifact):
+                continue
             decision = self.structured.validation_policy.evaluate(artifact)
             confidence = decision.confidence.confidence
             support = min(decision.confidence.independent_support / 2, 1)
@@ -282,6 +301,7 @@ class VectorRetriever(HybridRetriever):
         provider: EmbeddingProvider,
         *,
         validation_policy: LearningValidationPolicy | None = None,
+        assessment_verifier: AssessmentVerifier | None = None,
         observer: OperationObserver | None = None,
     ) -> None:
         super().__init__(
@@ -289,6 +309,7 @@ class VectorRetriever(HybridRetriever):
             vectors,
             provider,
             validation_policy=validation_policy,
+            assessment_verifier=assessment_verifier,
             strategy="vector",
             observer=observer,
         )
@@ -303,6 +324,7 @@ class GraphRetriever(HybridRetriever):
         graph: GraphStore,
         *,
         validation_policy: LearningValidationPolicy | None = None,
+        assessment_verifier: AssessmentVerifier | None = None,
         observer: OperationObserver | None = None,
     ) -> None:
         super().__init__(
@@ -311,6 +333,7 @@ class GraphRetriever(HybridRetriever):
             None,
             graph=graph,
             validation_policy=validation_policy,
+            assessment_verifier=assessment_verifier,
             strategy="graph",
             observer=observer,
         )

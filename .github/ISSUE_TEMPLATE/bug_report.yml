@@ -14,7 +14,7 @@ body:
     attributes:
       label: feedback-manager version
       description: Output of `python -c "import feedback_manager; print(feedback_manager.__version__)"`, or the pinned version in your lockfile.
-      placeholder: "0.1.2"
+      placeholder: "0.2.0"
     validations:
       required: true
 
