@@ -103,6 +103,21 @@ Each skill tells the agent when to use the others, so you can install all three
 and the agent picks the right one. If your application only records feedback,
 `feedback-manager` alone is enough.
 
+## Skills from related packages
+
+feedback-manager works with two packages that publish their own Agent Skills.
+Install them only if your application uses them. Neither is a dependency of
+feedback-manager.
+
+- [agxai](https://agxai.readthedocs.io/en/latest/agent-skills/): install with
+  `npx skills add smuniharish/agxai`. It publishes two skills: `agxai` for
+  adding agxai to an application and `agxai-extend` for writing instrumentors
+  and stores.
+- [RetrievalLoom](https://retrievalloom.readthedocs.io/en/latest/agent-skills/):
+  install with `npx skills add smuniharish/retrievalloom`, or pick one skill
+  with `--skill retrievalloom` or `--skill retrievalloom-extend`. It publishes
+  the `retrievalloom` and `retrievalloom-extend` skills.
+
 ## Use them
 
 Once installed, describe the task. The agent loads a skill when the task
