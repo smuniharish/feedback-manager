@@ -34,7 +34,6 @@ Real agents with a real chat model.
 | Example | Shows | Needs |
 |---|---|---|
 | [07 create_agent with MCP tools](agents.md#07-create_agent-with-mcp-tools) | A LangChain agent using an MCP server's tools, with failure capture and an evaluator check. | A chat model, Node.js |
-| [08 deepagents with human approval](agents.md#08-deepagents-with-human-approval) | A `deepagents` file edit gated by human approval, linked to provenance. | A chat model |
 
 ## Production
 

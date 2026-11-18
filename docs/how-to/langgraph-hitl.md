@@ -122,5 +122,4 @@ When the graph is instrumented by `agxai` and the manager has the
 runtime, `execution_context_from_snapshot` also records the run ID of the
 paused run. The request's [provenance](../concepts/provenance.md) then points
 at that run and at the human interaction `agxai` recorded for the
-interrupt. [Example 08](../examples/agents.md#08-deepagents-with-human-approval)
-does this with a `deepagents` agent whose file edits require approval.
+interrupt.

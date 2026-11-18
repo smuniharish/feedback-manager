@@ -44,9 +44,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Dependency pins: `agxai` is `>=1.0.3,<2` and `retrievalloom` is `>=0.2.0,<0.3`.
-  The `deepagents` example stays on `>=0.3.0,<0.3.1` because later releases
-  require `langchain-google-genai`, which conflicts with RetrievalLoom 0.2.0's
-  `tenacity` requirement.
+  Upgraded `langchain`, `langchain-openai`, `streamlit`, `mkdocstrings-python`
+  and `zensical` to their latest releases.
+- Removed the `deepagents` examples dependency and example 08
+  (`examples/08_agent_deepagents_hitl.py`). Every `deepagents` release
+  requires `langchain-google-genai`, which conflicts with RetrievalLoom 0.2.0's
+  `tenacity>=9.2.1` requirement.
 - `RetrievalLoomRetriever` raises `UnsupportedCapabilityError` for a nonzero
   `RetrievalRequest.graph_depth` that its engine cannot honor, instead of
   silently ignoring it.
