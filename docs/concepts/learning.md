@@ -32,23 +32,16 @@ The default resolver uses `execution_context.tenant_id` and, when present,
 becomes tenant-wide guidance by guessing a tenant. Hosts may inject a trusted
 scope resolver and reprocess retained feedback after authenticating its scope.
 
-The extractor handles explicit corrections, improvements, constraints, success
-and failure outcomes, and human decisions. Exact normalized patterns aggregate
-incrementally; token similarity can suggest related groups without silently
-merging them. Approval/rejection signals are returned as unsupported by the
-default artifact learners rather than being misrepresented as new knowledge.
+The extractor recognizes explicit corrections, improvements, constraints, success
+and failure outcomes, and human decisions. Approval and rejection signals are not
+turned into new knowledge by the default artifact learners.
 
-`LearningEngine.synthesize(signals)` combines related patterns into one review
-candidate when they share one scope and signal kind; synthesis never widens
-applicability. Relatedness comes from `PatternMiner.similar` or from
-`similarities` you supply, for example from RetrievalLoom. Each pattern's
-support is the number of distinct independence keys among its valid,
-non-contradicting evidence. Contradicting evidence is retained and reported but
-never counted as support. The default `DeterministicSynthesizer` restates
-supported statements verbatim, ordered by support. `ModelSynthesizer` wraps your
-`SynthesisModel` with a timeout. Every draft must cite only supported patterns
-from its cluster, or it is rejected. Synthesized text is untrusted candidate
-content that needs the same review and activation as any other candidate.
+`LearningEngine.synthesize(signals)` can combine related signals into one review
+candidate. Synthesis never widens applicability. Synthesized text is untrusted
+candidate content that needs the same review and activation as any other
+candidate. `ModelSynthesizer` accepts your own `SynthesisModel`; its drafts are
+checked against the evidence they cite and rejected if they cite unsupported
+material.
 
 | Signal | Default artifact |
 |---|---|
@@ -59,11 +52,10 @@ content that needs the same review and activation as any other candidate.
 
 ## Evidence and validation
 
-Evidence includes source feedback/execution identifiers, independence keys,
-quality, contradiction flags and timestamps. Repeated feedback from one execution
-does not become independent support. Records without an execution share an
-`unverified` independence key. Confidence reports support, agreement and review
-components; configurable decay can downweight old observations.
+Evidence records source feedback and execution identifiers, quality, contradiction
+flags and timestamps. Repeated feedback from one execution does not count as
+independent support. Contradicting evidence is kept for audit. Confidence is
+configurable, and older observations can be discounted.
 
 The default validation policy requires two independent supporting observations,
 sufficient confidence and an explicit human review bound to the reviewed content
