@@ -57,3 +57,23 @@ Tools used: ['list_allowed_directories', 'read_text_file']
 Answer: The known issue is that the `/export` endpoint can time out under heavy load.
 Feedback: evaluator/quality  {'check': 'mentions the /export known issue', 'passed': True, 'answer': 'The known issue is that the `/export` endpoint can time out under heavy load.'}
 ```
+
+## 08 create_agent with HITL middleware
+
+`HumanInTheLoopMiddleware` pauses a `create_agent` agent before its
+`send_refund` tool runs. The application shows the pending call to a reviewer,
+and `LangGraphHumanInTheLoopBridge` records the approval request and the
+decision as feedback about the tool call. The agent then resumes with the
+reviewer's decision. The model is a scripted fake, so this example runs
+offline with no credentials.
+
+```python title="examples/08_agent_hitl_middleware.py"
+--8<-- "examples/08_agent_hitl_middleware.py"
+```
+
+```text title="Output"
+Agent paused; approval request 5428963e-9123-442b-ab82-ad726af28b54 is received
+Decision recorded: resolved, resolution={'response': 'approve', 'approved': True}
+Tool ran after approval: Refund sent for order 1042
+Agent resumed and finished: The refund for order 1042 was sent.
+```

@@ -33,19 +33,13 @@ from psycopg import sql
 from psycopg.types.json import Jsonb
 from psycopg_pool import AsyncConnectionPool
 
-from feedback_manager.learning import ArtifactScope
+from feedback_manager.learning import ArtifactScope, LearningError
 from feedback_manager.learning.jobs import (
     LearningJob,
     LearningJobNotFoundError,
     LearningJobStatus,
     LearningJobStore,
-    _check_claim,
-    _check_limit,
-    _completed,
-    _dead,
-    _leased,
-    _requeued,
-    _retried,
+    LearningLeaseLostError,
 )
 
 if TYPE_CHECKING:
@@ -71,6 +65,100 @@ CREATE TABLE IF NOT EXISTS {checkpoints} (
     cursor TEXT NOT NULL
 );
 """
+
+# The transition rules below mirror the in-memory store in feedback_manager.learning.jobs.
+# That module keeps them private, so this example carries its own copy; keep them in step.
+MAX_ERROR_LENGTH = 2000
+
+
+def _now() -> datetime:
+    return datetime.now(UTC)
+
+
+def _truncate(error: str) -> str:
+    return error[:MAX_ERROR_LENGTH]
+
+
+def _check_limit(limit: int) -> None:
+    if isinstance(limit, bool) or not isinstance(limit, int) or limit < 1:
+        raise ValueError("limit must be a positive integer")
+
+
+def _check_claim(lease: timedelta, now: datetime | None) -> None:
+    if lease <= timedelta(0):
+        raise ValueError("lease must be positive")
+    if now is not None and now.utcoffset() is None:
+        raise ValueError("now must be timezone-aware")
+
+
+def _check_lease(job: LearningJob, attempt: int) -> None:
+    if job.status is not LearningJobStatus.RUNNING or job.attempts != attempt:
+        raise LearningLeaseLostError("learning job lease was lost")
+
+
+def _leased(job: LearningJob, now: datetime, lease: timedelta) -> LearningJob:
+    return job.model_copy(
+        update={
+            "status": LearningJobStatus.RUNNING,
+            "attempts": job.attempts + 1,
+            "retry_attempt": job.retry_attempt + 1,
+            "lease_expires_at": now + lease,
+            "updated_at": now,
+        }
+    )
+
+
+def _completed(job: LearningJob, attempt: int) -> LearningJob:
+    _check_lease(job, attempt)
+    return job.model_copy(
+        update={
+            "status": LearningJobStatus.SUCCEEDED,
+            "lease_expires_at": None,
+            "last_error": None,
+            "updated_at": _now(),
+        }
+    )
+
+
+def _retried(job: LearningJob, attempt: int, error: str, available_at: datetime) -> LearningJob:
+    _check_lease(job, attempt)
+    if available_at.utcoffset() is None:
+        raise ValueError("available_at must be timezone-aware")
+    return job.model_copy(
+        update={
+            "status": LearningJobStatus.PENDING,
+            "available_at": available_at,
+            "lease_expires_at": None,
+            "last_error": _truncate(error),
+            "updated_at": _now(),
+        }
+    )
+
+
+def _dead(job: LearningJob, attempt: int, error: str) -> LearningJob:
+    _check_lease(job, attempt)
+    return job.model_copy(
+        update={
+            "status": LearningJobStatus.DEAD_LETTERED,
+            "lease_expires_at": None,
+            "last_error": _truncate(error),
+            "updated_at": _now(),
+        }
+    )
+
+
+def _requeued(job: LearningJob) -> LearningJob:
+    if job.status is not LearningJobStatus.DEAD_LETTERED:
+        raise LearningError("only dead-lettered jobs can be requeued")
+    now = _now()
+    return job.model_copy(
+        update={
+            "status": LearningJobStatus.PENDING,
+            "retry_attempt": 0,
+            "available_at": now,
+            "updated_at": now,
+        }
+    )
 
 
 class PostgresLearningJobStore(LearningJobStore):

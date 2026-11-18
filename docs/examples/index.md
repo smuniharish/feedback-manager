@@ -29,11 +29,13 @@ Offline, deterministic, and fast: no model, no network, no database.
 
 ## Agents
 
-Real agents with a real chat model.
+Agents built with `create_agent`. Example 07 uses a real chat model; example 08
+runs offline.
 
 | Example | Shows | Needs |
 |---|---|---|
 | [07 create_agent with MCP tools](agents.md#07-create_agent-with-mcp-tools) | A LangChain agent using an MCP server's tools, with failure capture and an evaluator check. | A chat model, Node.js |
+| [08 create_agent with HITL middleware](agents.md#08-create_agent-with-hitl-middleware) | Pauses a tool call for approval with `HumanInTheLoopMiddleware` and records the decision. | Nothing (scripted model) |
 
 ## Production
 

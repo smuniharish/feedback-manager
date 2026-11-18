@@ -28,6 +28,7 @@ SELF_CONTAINED = {
     "04_generation_interruption.py": "gen-101: interruption",
     "05_evaluator_feedback.py": "Routed to human review: ['gen-2']",
     "06_provenance.py": "Post-run feedback provenance",
+    "08_agent_hitl_middleware.py": "Agent resumed and finished",
     "09_override_defaults.py": "lifecycle_policy:   assign a reviewer before resolving",
     "10_full_matrix_feedback.py": "Distinct combinations stored: 1560 of 1560",
     "sqlite_feedback_store.py": "After reopening: resolved, resolution={'reviewed': True}",
